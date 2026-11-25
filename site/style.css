@@ -145,3 +145,21 @@ body{color:#1b2333;-webkit-font-smoothing:antialiased;word-break:keep-all}
 .eg-photo-slot{isolation:isolate}.eg-photo-slot img{z-index:2}.eg-card-credit[hidden]{display:none!important}.eg-card-hours .open-pill.open:before{content:'';display:inline-block;width:6px;height:6px;background:#16816a;border-radius:50%;margin-right:4px;vertical-align:1px}.eg-place-card .cardbody .open-pill{margin:0}.eg-place-card .cardbody .name{margin:0}
 /* Keep the call action separate from the flexible card content. */
 .eg-place-card>a.card-call{display:flex!important;flex:0 0 auto;min-height:44px;padding:8px!important;align-items:center;justify-content:center;margin:0 10px 10px;line-height:1.3}
+/* v2.3 editorial category illustrations: never presented as venue photos. */
+.eg-art.eg-art23{--bg:#e2eae2;--light:#b9d0bd;--paper:#fff8e9;--dark:#385d50;--accent:#8aa994;background:var(--bg);color:var(--dark)}
+.eg-art23[data-kind="카페"]{--bg:#f3e4ce;--light:#e1c4a1;--dark:#72513c;--accent:#ad7956}
+.eg-art23[data-kind="식당"]{--bg:#f2ded1;--light:#e6b6a2;--dark:#763e35;--accent:#c7795e}
+.eg-art23[data-kind="숙소"],.eg-art23[data-kind="호텔·유치원"]{--bg:#e1e8ec;--light:#bdcddc;--dark:#425b70;--accent:#8da4b8}
+.eg-art23[data-kind="여행지"],.eg-art23[data-kind="놀이터"]{--bg:#e3ead3;--light:#b9cfac;--dark:#3b614a;--accent:#87ad91}
+.eg-art23[data-kind="동물병원"]{--bg:#e0eeea;--light:#b4d4cc;--dark:#365f62;--accent:#70a6a4}
+.eg-art23[data-kind="미용"]{--bg:#eee3ea;--light:#d6bfd5;--dark:#684c68;--accent:#b18cae}
+.eg-art23[data-kind="장례·추모"]{--bg:#e9e9ec;--light:#cbd0d3;--dark:#555c67;--accent:#abb1ba}
+.eg-art23[data-variant="1"] svg{filter:hue-rotate(15deg)}.eg-art23[data-variant="2"] svg{filter:hue-rotate(-18deg) saturate(.85)}.eg-art23[data-variant="3"] svg{filter:saturate(.72) brightness(1.025)}
+.eg-art23[data-variant="1"]:after{background:repeating-linear-gradient(130deg,transparent 0 11px,#fff3 11px 12px)}.eg-art23[data-variant="2"]:after{background:radial-gradient(circle,#fff5 1px,transparent 1.5px);background-size:10px 10px}.eg-art23[data-variant="3"]:after{background:repeating-linear-gradient(0deg,transparent 0 14px,#fff3 14px 15px)}
+.eg-art.eg-art23:after{inset:0;width:100%;height:83%;aspect-ratio:auto;border:0;box-shadow:none;border-radius:0;pointer-events:none;opacity:.6;z-index:1}
+.eg-art.eg-art23 svg{width:100%;max-width:none;height:100%;display:block;filter:none;z-index:0}
+.eg-art.eg-art23[data-variant="1"] svg{filter:hue-rotate(15deg)}.eg-art.eg-art23[data-variant="2"] svg{filter:hue-rotate(-18deg) saturate(.85)}.eg-art.eg-art23[data-variant="3"] svg{filter:saturate(.72) brightness(1.025)}
+.eg-art23 .eg-art-caption,.eg-art-note{position:absolute;bottom:7px;line-height:1.2;font-size:9px;font-weight:750;z-index:2;background:#fffdf4da;padding:3px 5px;border-radius:5px;color:#33443e}.eg-art23 .eg-art-caption{left:7px}.eg-art-note{right:7px;color:#59665f;font-weight:600}
+.eg-photo-slot img[data-card-photo]{z-index:3}
+/* Fixed navigation anchored to viewport, with explicit safe-area reserve. */
+@media(max-width:760px){body:has(>.mobile-nav){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}html:has(.mobile-nav){scroll-padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}.mobile-nav{position:fixed;inset:auto 0 0 0;z-index:100;isolation:isolate;background:#fff;box-shadow:0 -4px 16px #263a3112;padding:7px 4px calc(7px + env(safe-area-inset-bottom,0px));min-height:59px;max-width:100vw}.mobile-nav button{min-height:44px}.mobile-nav button:focus-visible{outline-offset:-3px}body.eg-map-full .mobile-nav{visibility:hidden;pointer-events:none}}
