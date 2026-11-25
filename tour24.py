@@ -1,5 +1,6 @@
 """Conservative TourAPI matching and presentation. No network access here."""
 import collections, difflib, html, math, re, unicodedata
+from tour25 import shopping_code,new_distribution
 
 BASE_TYPES={'12','14','28','32','39'}
 # A04010600 includes individual shops too; never accept the code alone.
@@ -10,7 +11,7 @@ NEG=re.compile(r'동반\s*(?:불가|금지|불가능)|입장\s*(?:불가|금지|
 POS=re.compile(r'(?:동반|입장)\s*(?:이\s*)?가능|동반\s*허용|반려동물\s*동반\s*가능|일부\s*구역\s*가능')
 
 def shopping_candidate(r):
-    if str(r.get('type'))!='38' or r.get('cat3') not in MALL_CODE:return False
+    if str(r.get('type'))!='38' or not shopping_code(r,MALL_CODE):return False
     name=unicodedata.normalize('NFKC',str(r.get('name') or '')).strip()
     return bool(MALL_NAME.fullmatch(name) and not TENANT.search(name) and not TENANT.search(str(r.get('address') or '')))
 
@@ -29,7 +30,7 @@ def shopping_report(records):
     rows=[r for r in records if str(r.get('type'))=='38']; buckets={}
     for r in rows:
         k=str(r.get('cat3') or '(empty)');b=buckets.setdefault(k,{'records':0,'eligible':0,'pending-pet-evidence':0,'restricted-review':0,'excluded':0,'snapshot_image_records':0});b['records']+=1;b[shopping_state(r)]+=1;b['snapshot_image_records']+=bool(r.get('images'))
-    return {'type38_records':len(rows),'type38_cat3':dict(sorted(buckets.items())),'type38_candidate_records':sum(shopping_candidate(r) for r in rows),'type38_eligible_records':sum(shopping_state(r)=='eligible' for r in rows)}
+    return {**new_distribution(records),'type38_records':len(rows),'type38_cat3':dict(sorted(buckets.items())),'type38_candidate_records':sum(shopping_candidate(r) for r in rows),'type38_eligible_records':sum(shopping_state(r)=='eligible' for r in rows)}
 
 def clean_name(s):
     s=unicodedata.normalize('NFKC',str(s or '')).lower().strip()

@@ -7,7 +7,9 @@ from settings import SITE_URL as BASE, ALLOW_INDEXING, FORMS_LIVE as ENABLE_FORM
 PREVIEW=not ALLOW_INDEXING
 assert BASE.startswith('https://') and urllib.parse.urlsplit(BASE).netloc and not urllib.parse.urlsplit(BASE).path
 from tourapi import integrate as tour_integrate, report as tour_report, PET, SOURCE as TOUR_SOURCE
-from tour24 import detail_html as tour_detail_html
+from tour24 import detail_html as tour_detail_html, clean_name
+from tour25 import review_csv, share_photo, share_tags
+from tourapi import read as tour_read, point as tour_point, km as tour_km
 from art23 import SCENES, BASE as ART_BASE
 from cards22 import annotate as own_ratings, card as card22, rating as rating22, curated as curated22
 from v13 import funeral_places,funeral_seo,match,extra_paths,content,detail_content,publish_pages,funeral_cta,funeral_actions,fee_notice,is_funeral,neutral_key,reject_funeral_overlays,ROLE,DISCLOSURE,PRIVACY_TEXT
@@ -64,10 +66,10 @@ def write(path,content):
  f=SITE/path.lstrip('/');f.parent.mkdir(parents=True,exist_ok=True);f.write_text(content,encoding='utf-8')
 def dump(path,x):write(path,json.dumps(x,ensure_ascii=False,separators=(',',':')))
 def jsld(x):return '<script type="application/ld+json">'+json.dumps(x,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')+'</script>'
-def social(title,desc,path):
- vals={'og:title':title,'og:description':desc,'og:url':url(path),'og:image':url('/og-brand.png'),'og:type':'website'}
+def social(title,desc,path,photo=None):
+ vals={'og:title':title,'og:description':desc,'og:url':url(path),'og:image':photo[0] if photo else url('/og-brand.png'),'og:type':'website'}
  return ''.join(f'<meta property="{k}" content="{E(v)}">' for k,v in vals.items())+'<meta name="twitter:card" content="summary_large_image">'+f'<meta name="naver-site-verification" content="{E(NAVER_VERIFICATION)}"><meta name="google-site-verification" content="{E(GOOGLE_VERIFICATION)}">'
-def head(title,desc,path,ld=None,noindex=False):return f'<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{E(title)}</title><meta name="description" content="{E(desc)}"><link rel="canonical" href="{E(url(path))}">'+social(title,desc,path)+('<meta name="robots" content="noindex,follow">' if noindex or PREVIEW else '')+'<link rel="stylesheet" href="/bundle.css"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><link rel="apple-touch-icon" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><script src="/core.js" defer></script>'+(''.join(jsld(x) for x in ld) if isinstance(ld,list) else jsld(ld) if ld else '')
+def head(title,desc,path,ld=None,noindex=False,place=None):return f'<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{E(title)}</title><meta name="description" content="{E(desc)}"><link rel="canonical" href="{E(url(path))}">'+social(title,desc+(" · "+share_photo(place,BASE)[1] if place and share_photo(place,BASE) else ""),path,share_photo(place,BASE) if place else None)+(share_tags(place,BASE) if place else "")+('<meta name="robots" content="noindex,follow">' if noindex or PREVIEW else '')+'<link rel="stylesheet" href="/bundle.css"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><link rel="apple-touch-icon" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><script src="/core.js" defer></script>'+(''.join(jsld(x) for x in ld) if isinstance(ld,list) else jsld(ld) if ld else '')
 
 TIP='공공 목록에 등재됐다는 뜻이며 모든 조건을 보증하지 않음'
 BADGES=[('식약처 공식 인증','mint'),('등록업체','registry'),('공공데이터','public'),('제보','report')]
@@ -92,7 +94,7 @@ if not ENABLE_FORMS:FOOT=FOOT.replace(' · <a href="/?launch=1#launch">출시 �
 FOOT=FOOT.replace('<br>','<br>'+business_html()+'<br>',1).replace('<a href="/sources/">데이터 출처</a>','<a href="/sources/">데이터 출처</a> · <a href="/privacy/#adfit">맞춤형 광고 안내</a> · <a href="/owner/terms-ads/">광고 이용계약서</a>')
 
 FOOT=FOOT.replace('<a href="/sources/">데이터 출처</a>','<a href="/sources/">데이터 출처</a> · <a href="/funeral/">장례·추모</a> · <a href="/review-policy/">후기·사진 운영 원칙</a>')
-def page(path,title,desc,body,ld=None,noindex=False):write(path+'index.html','<!doctype html><html lang="ko"><head>'+head(title,desc,path,ld,noindex)+'</head><body>'+NAV+'<main class="wrap detail">'+body+'</main>'+FOOT+'</body></html>')
+def page(path,title,desc,body,ld=None,noindex=False,place=None):write(path+'index.html','<!doctype html><html lang="ko"><head>'+head(title,desc,path,ld,noindex,place)+'</head><body>'+NAV+'<main class="wrap detail">'+body+'</main>'+FOOT+'</body></html>')
 # shard generation; preserve source fields and categories
 search_routes={}
 regions=sorted(set(p.get('sido') or '지역 미확인' for p in A),key=lambda r:(r!='서울특별시',r=='지역 미확인',r)); cats=['식당','카페','숙소','여행지','놀이터','동물병원','미용','호텔·유치원','장례·추모']; groups=collections.defaultdict(list)
@@ -259,7 +261,7 @@ for p in A:
  h+=owner_gallery(owner_photos.get(p['id'],[]))
  if not is_funeral(p):h+=f'<section class="panel" id="photo-contribute"><h2>이 장소 사진 올리기</h2><p>직접 촬영한 사진을 보내 주세요. 검수 후 대표 사진으로 채택될 수 있으며, 희망하면 공개 닉네임을 사진 크레딧에 표시합니다. 금전 보상·노출 우대는 없습니다.</p><a class="btn primary" data-eg-event="photo" href="/contribute/?place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}#visitor-photo">이 장소 사진 올리기</a></section>'
  h+=detail_content(p['id'],reviews,photos).replace('?place='+p['id']+'#','?place='+p['id']+'&amp;name='+E(urllib.parse.quote(name))+'#')
- page(path,title,desc,h,[schema,crumbld])
+ page(path,title,desc,h,[schema,crumbld],place=p)
 # centralized form and policy pages; local download only
 from forms import form, intake_js, md_html
 from launch import launch_markup
@@ -322,6 +324,8 @@ home=(SRC/'home-template.html').read_text().replace('<!--PLACE_COUNT-->',f'{len(
 page('/recommendation-policy/','사진 추천 기준 | 어디가개','사진과 정보 출처 기준을 공개합니다.','<h1>사진 추천 기준</h1><p>한국관광공사 이용 허락 사진 또는 운영 승인된 자체 사진이 있는 장소를 소개합니다. 사진이 있어도 품질·영업·동반 가능성을 보증하지 않습니다. 광고 구매, Google 평점은 추천 산식에 반영하지 않습니다. 장례업체는 제외합니다.</p><p>승인 사진 여부 → 관광공사 사진 여부 → 정보 충실도 → 고유 ID 순으로 선정합니다. 지역·업종별 최대 8곳을 보여주며 추천 사진이 없으면 영역을 숨깁니다.</p><a href="/review-policy/">후기 운영 원칙</a>')
 dump('data/tourapi-audit.json',tour_audit)
 tour_summary=tour_report(SRC,A,tour_audit)
+review_cases,review_rows=review_csv(ROOT/'internal'/'tour-match-review.csv',tour_read(SRC)['records'],A,tour_audit,tour_point,tour_km,clean_name)
+print(f'TourAPI private review CSV: {review_cases} cases, {review_rows} candidate rows')
 dump('data/tourapi-summary.json',tour_summary)
 print('TourAPI match report:',json.dumps(tour_summary,ensure_ascii=False))
 if os.getenv('GITHUB_STEP_SUMMARY'):

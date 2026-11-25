@@ -1,6 +1,7 @@
 """KTO factual data + explicitly licensed image URLs; no images copied."""
 import urllib.error, collections, datetime as dt, json, math, os, re, urllib.parse, urllib.request, pathlib, unicodedata
-from tour24 import Matcher, collect_detail, eligible, shopping_report, shopping_state
+from tour24 import Matcher, collect_detail, eligible, shopping_report, shopping_state, compatible
+from tour25 import classification, load_overrides
 BASE='https://apis.data.go.kr/B551011/KorPetTourService2'
 SOURCE='https://www.data.go.kr/data/15135102/openapi.do'
 REGIONS=dict(zip(['서울','인천','대전','대구','광주','부산','울산','세종','경기','강원','충북','충남','경북','경남','전북','전남','제주'],['서울특별시','인천광역시','대전광역시','대구광역시','광주광역시','부산광역시','울산광역시','세종특별자치시','경기도','강원특별자치도','충청북도','충청남도','경상북도','경상남도','전북특별자치도','전라남도','제주특별자치도']))
@@ -29,7 +30,7 @@ def basic(r):
  cid=str(r.get('contentid','')); addr=str(r.get('addr1') or '').strip(); name=str(r.get('title') or '').strip(); ct=str(r.get('contenttypeid',''))
  if not re.fullmatch(r'\d{1,12}',cid) or not name or not addr or not region(addr) or ct not in ('12','14','15','25','28','32','38','39') or str(r.get('showflag','1'))=='0':return None
  a,b=point(r.get('mapx'),r.get('mapy')); ph=licensed(r,'firstimage')
- return {'contentId':cid,'name':name,'address':addr,'lat':a,'lng':b,'type':ct,'cat3':str(r.get('cat3') or ''),'modified':str(r.get('modifiedtime') or ''),'phone':str(r.get('tel') or '')[:100],'representative':ph,'images':[ph] if ph else [],'pet':{},'detailDone':False,'imageDone':False,'checkedOn':today()}
+ return {'contentId':cid,'name':name,'address':addr,'lat':a,'lng':b,'type':ct,'cat3':str(r.get('cat3') or ''),**classification(r),'modified':str(r.get('modifiedtime') or ''),'phone':str(r.get('tel') or '')[:100],'representative':ph,'images':[ph] if ph else [],'pet':{},'detailDone':False,'imageDone':False,'checkedOn':today()}
 def read(src):return json.loads((src/'tourapi.json').read_text())
 class API:
  def __init__(self,key,limit):self.key=urllib.parse.unquote(key);self.limit=limit;self.calls=0
@@ -115,17 +116,24 @@ def integrate(src,places):
   if p['id'].startswith('f'):continue
   byname[(p.get('sido'),norm(p['name']))].append(p);byaddr[(p.get('sido'),addrkey(p.get('roadAddress') or p.get('address')))].append(p)
  matcher=Matcher(places,region,addrkey,point,km,norm)
+ overrides=load_overrides(src,snap['records'],places,eligible,compatible,region)
+ override_targets={p['id']:p for p in places}
  audit=[]
  seen=set()
  # Resolve old exact matches first so fuzzy candidates cannot steal their IDs.
- for r in sorted(snap['records'],key=lambda r:not (eligible(r) and matcher.match(r,strict=True)[0])):
+ for r in sorted(snap['records'],key=lambda r:(r['contentId'] not in overrides,not (eligible(r) and matcher.match(r,strict=True)[0]))):
   assert re.fullmatch(r'\d{1,12}',r['contentId']) and r['contentId'] not in seen;seen.add(r['contentId'])
+  decision=overrides.get(r['contentId'])
+  if decision=='skip':
+   audit.append({'contentId':r['contentId'],'status':'skipped-by-review','matchMethod':'manual-override'});continue
   if not eligible(r):
    entry={'contentId':r['contentId'],'status':'unsupported-category'}
    if r['type']=='38':entry['shoppingState']=shopping_state(r)
    audit.append(entry);continue
   si=region(r['address']); name=norm(r['name']); ak=addrkey(r['address']);a,b=point(r['lng'],r['lat'])
-  p,evidence,candidates=matcher.match(r)
+  if decision=='new':p,evidence,candidates=None,{'matchMethod':'manual-new'},[]
+  elif decision is not None:p,evidence,candidates=override_targets[decision],{'matchMethod':'manual-override'},[]
+  else:p,evidence,candidates=matcher.match(r)
   if p is not None:status='matched'
   elif candidates:audit.append({'contentId':r['contentId'],'status':'manual-review','candidates':candidates});continue
   else:
@@ -148,7 +156,7 @@ def report(src,places,audit):
  new_photos={i for i in new if byid[i].get('tourPhoto')}
  eligible=counts['matched']+counts['new']+counts['manual-review']
  # The denominator includes eligible records needing manual review, excludes unsupported categories.
- return {**shopping_report(snap['records']),'exact_matched_records':sum(x.get('matchMethod')=='exact' for x in audit),'fuzzy_matched_records':sum(x.get('matchMethod')=='name-address-distance' for x in audit),'snapshot_status':snap.get('status','unknown'),'last_attempt':snap.get('lastAttempt'),'last_complete_list':snap.get('lastCompleteList'),'batch_calls':snap.get('calls',0),'source_records':len(snap['records']),'eligible_records':eligible,'matched_records':counts['matched'],'matched_existing_places':len(existing_ids),'match_rate_pct':round(100*counts['matched']/eligible,2) if eligible else None,'new_records':counts['new'],'new_places':len(new),'manual_review_records':counts['manual-review'],'unsupported_records':counts['unsupported-category'],'matched_existing_with_licensed_photo':len(matched_photos),'new_with_licensed_photo':len(new_photos),'total_places_with_tour_photo':len(matched_photos|new_photos),'tour_photo_used_as_cover':sum(not byid[i].get('ownerPhoto') for i in matched_photos|new_photos),'detail_complete_records':sum(bool(r.get('detailDone')) for r in snap['records']),'image_complete_records':sum(bool(r.get('imageDone')) for r in snap['records'])}
+ return {**shopping_report(snap['records']),'exact_matched_records':sum(x.get('matchMethod')=='exact' for x in audit),'fuzzy_matched_records':sum(x.get('matchMethod')=='name-address-distance' for x in audit),'snapshot_status':snap.get('status','unknown'),'last_attempt':snap.get('lastAttempt'),'last_complete_list':snap.get('lastCompleteList'),'batch_calls':snap.get('calls',0),'source_records':len(snap['records']),'eligible_records':eligible,'matched_records':counts['matched'],'matched_existing_places':len(existing_ids),'match_rate_pct':round(100*counts['matched']/eligible,2) if eligible else None,'new_records':counts['new'],'new_places':len(new),'manual_review_records':counts['manual-review'],'unsupported_records':counts['unsupported-category'],'manual_override_records':sum(x.get('matchMethod')=='manual-override' and x['status']=='matched' for x in audit),'manual_new_records':sum(x.get('matchMethod')=='manual-new' for x in audit),'manual_skipped_records':counts['skipped-by-review'],'matched_existing_with_licensed_photo':len(matched_photos),'new_with_licensed_photo':len(new_photos),'total_places_with_tour_photo':len(matched_photos|new_photos),'tour_photo_used_as_cover':sum(not byid[i].get('ownerPhoto') for i in matched_photos|new_photos),'detail_complete_records':sum(bool(r.get('detailDone')) for r in snap['records']),'image_complete_records':sum(bool(r.get('imageDone')) for r in snap['records'])}
 
 if __name__=='__main__':
  src=pathlib.Path(__file__).parent/'source';key=os.getenv('TOURAPI_SERVICE_KEY','').strip()
