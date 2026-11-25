@@ -12,9 +12,6 @@ GOOGLE_SEARCH_DAILY_LIMIT = "100"
 NAVER_SEARCH_APPROVED = "false"
 NAVER_IMAGE_APPROVED = "false"
 NAVER_MATCH_APPROVED = "false"
-[[durable_objects.bindings]]
-name = "QUOTA"
-class_name = "DailyQuota"
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["DailyQuota"]
+[[kv_namespaces]]
+binding = "QUOTA_KV"
+id = "SET_IN_DASHBOARD"

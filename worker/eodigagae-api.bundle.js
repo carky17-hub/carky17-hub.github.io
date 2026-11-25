@@ -1,4 +1,7 @@
-// eodigagae-api bundle (worker.js + google.js) v1.8
+// eodigagae-api bundle (worker.js + google.js) v1.8 — KV quota
+
+// KV-based daily cap (dashboard-deployable; approximate under heavy concurrency)
+async function reserveKV(env,name,cap){if(!env.QUOTA_KV)return false;const day=new Date(Date.now()+9*3600000).toISOString().slice(0,10);const k=name+':'+day;const n=Number(await env.QUOTA_KV.get(k))||0;if(n>=cap)return false;await env.QUOTA_KV.put(k,String(n+1),{expirationTtl:172800});return true}
 const {googleRoute}=(()=>{
 // Global quota per SKU. No external content persistence.
 const str=v=>typeof v==='string'&&v.length>0&&v.length<=300&&!/[\x00-\x1f\x7f]/.test(v);
@@ -14,7 +17,7 @@ async function token(name,secret){const body=b64(new TextEncoder().encode(JSON.s
 async function decode(t,secret){if(typeof t!=='string'||t.length>2400)return null;try{const [b,s,...rest]=t.split('.');if(rest.length||!await crypto.subtle.verify('HMAC',await key(secret),un64(s),new TextEncoder().encode(b)))return null;const d=JSON.parse(new TextDecoder().decode(un64(b)));return d.exp>Date.now()&&/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(d.name)?d.name:null}catch{return null}}
 async function googleRoute(req,env,origin,response){const u=new URL(req.url),route=u.pathname.slice(1);const reply=(b,s=200)=>response(b,s,origin);if(req.method!=='GET')return reply({error:'method'},405);if(env.GOOGLE_APPROVED!=='true'||!env.GOOGLE_SERVER_KEY)return reply({error:'disabled'},503);
  const caps={search:[env.GOOGLE_SEARCH_DAILY_LIMIT||'100',100],details:[env.GOOGLE_DETAILS_DAILY_LIMIT||'25',25],photos:[env.GOOGLE_PHOTOS_DAILY_LIMIT||'25',25]};
- async function reserve(kind){const [raw,max]=caps[kind];const n=Number(raw);if(!Number.isSafeInteger(n)||n<1||n>max)throw Object.assign(Error('cap'),{status:503});const stub=env.QUOTA.get(env.QUOTA.idFromName('google-'+kind));const r=await stub.fetch('https://quota.internal/reserve',{method:'POST',body:String(n)});if(!r.ok)throw Object.assign(Error('quota'),{status:429})}
+ async function reserve(kind){const [raw,max]=caps[kind];const n=Number(raw);if(!Number.isSafeInteger(n)||n<1||n>max)throw Object.assign(Error('cap'),{status:503});if(!await reserveKV(env,'google-'+kind,n))throw Object.assign(Error('quota'),{status:429})}
  async function call(kind,path,mask,body){await reserve(kind);const r=await fetch('https://places.googleapis.com/v1/'+path,{method:body?'POST':'GET',headers:{'X-Goog-Api-Key':env.GOOGLE_SERVER_KEY,...(mask?{'X-Goog-FieldMask':mask}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),cache:'no-store',redirect:'error',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Object.assign(Error('upstream'),{status:502});return r.json()}
  try{if(route==='google-photo'){if(env.GOOGLE_PHOTOS_ENABLED!=='true')return reply({error:'disabled'},503);const name=await decode(u.searchParams.get('token'),env.GOOGLE_SERVER_KEY);if(!name)return reply({error:'token'},400);const d=await call('photos',name+'/media?maxWidthPx=640&maxHeightPx=640&skipHttpRedirect=true');const url=new URL(d.photoUri);if(url.protocol!=='https:'||!(url.hostname==='googleusercontent.com'||url.hostname.endsWith('.googleusercontent.com')||url.hostname.endsWith('.ggpht.com'))||url.username||url.password)throw Error('photo uri');return reply({photoUri:url.href})}
  const name=u.searchParams.get('name'),district=u.searchParams.get('district'),sido=u.searchParams.get('sido'),address=u.searchParams.get('address');if(![name,district,sido,address].every(str)||!street(address))return reply({status:'unmatched'});let id=u.searchParams.get('id');if(id&&!idOK(id))return reply({error:'id'},400);
@@ -45,8 +48,8 @@ export default {async fetch(req,env){const u=new URL(req.url),origin=req.headers
  if(route==='image'&&env.NAVER_IMAGE_APPROVED!=='true')return response({error:'disabled'},503,origin);
  const q=(u.searchParams.get('q')||'').trim(),name=(u.searchParams.get('name')||'').trim(),district=(u.searchParams.get('district')||'').trim(),address=(u.searchParams.get('address')||'').trim();if(!clean(q)||route==='match'&&![name,district,address].every(clean))return response({error:'query'},400,origin);
  const cap=Number(env.DAILY_LIMIT||100);if(!Number.isSafeInteger(cap)||cap<1||cap>1000)return response({error:'disabled'},503,origin);
- try{const stub=env.QUOTA.get(env.QUOTA.idFromName('global'));
-  async function call(kind,params){const gate=await stub.fetch('https://quota.internal/reserve',{method:'POST',body:String(cap)});if(!gate.ok)throw Object.assign(Error('limit'),{status:429});const url=new URL('https://naverapihub.apigw.ntruss.com/search/v1/'+kind);url.search=new URLSearchParams({query:q,format:'json',...params});const r=await fetch(url,{headers:{'X-NCP-APIGW-API-KEY-ID':env.NAVER_CLIENT_ID,'X-NCP-APIGW-API-KEY':env.NAVER_CLIENT_SECRET},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw Object.assign(Error('upstream'),{status:502});return r.json()}
+ try{
+  async function call(kind,params){if(!await reserveKV(env,'naver',cap))throw Object.assign(Error('limit'),{status:429});const url=new URL('https://naverapihub.apigw.ntruss.com/search/v1/'+kind);url.search=new URLSearchParams({query:q,format:'json',...params});const r=await fetch(url,{headers:{'X-NCP-APIGW-API-KEY-ID':env.NAVER_CLIENT_ID,'X-NCP-APIGW-API-KEY':env.NAVER_CLIENT_SECRET},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw Object.assign(Error('upstream'),{status:502});return r.json()}
   if(route==='image'){const safety=await call('adult',{});if(String(safety.adult)!=='0')return response({error:'search term blocked'},422,origin)}
   const kind=route==='match'?'local':route;
   const d=await call(kind,{display:kind==='blog'?'3':kind==='image'&&u.searchParams.get('single')==='1'?'1':'5',start:'1',sort:kind==='blog'?'date':kind==='local'?'random':'sim'});
@@ -55,4 +58,3 @@ export default {async fetch(req,env){const u=new URL(req.url),origin=req.headers
   // Original result order and fields. No filtering, blending, ranking, or image copying.
   return response(d,200,origin)
  }catch(e){return response({error:'unavailable'},e.status||503,origin)}}};
-export class DailyQuota{constructor(ctx){this.ctx=ctx}async fetch(req){if(req.method!=='POST')return new Response('',{status:405});const cap=Number(await req.text());if(!Number.isSafeInteger(cap)||cap<1||cap>1000)return new Response('',{status:400});const day=new Date(Date.now()+9*3600000).toISOString().slice(0,10);const ok=await this.ctx.storage.transaction(async tx=>{const old=await tx.get('counter');const n=old?.day===day?old.n:0;if(n>=cap)return false;await tx.put('counter',{day,n:n+1});return true});return new Response('',{status:ok?200:429})}}
