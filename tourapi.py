@@ -91,7 +91,7 @@ def sync(src,api):
     else:r['imageDone']=False
   result['records']=list(fresh.values());result['lastCompleteList']=day
   errors=0;consecutive=0
-  for r in sorted(result['records'],key=lambda p:(p['detailDone'] and p['imageDone'],p['checkedOn'],p['contentId'])):
+  for r in sorted([x for x in result['records'] if x['type'] in ('12','14','28','32','39')],key=lambda p:(p['detailDone'] and p['imageDone'],p['checkedOn'],p['contentId'])):
    try:
     if not r['detailDone']:
      rows,_=api.call('detailPetTour2',contentId=r['contentId'],numOfRows=10,pageNo=1);r['pet']={k:str(v)[:4000] for x in rows if str(x.get('contentid'))==r['contentId'] for k,v in x.items() if k in PET and v};r['detailDone']=True;r['checkedOn']=day
@@ -129,8 +129,20 @@ def integrate(src,places):
    cat={'32':'숙소','39':'카페' if r['cat3']=='A05020900' else '식당'}.get(r['type'],'여행지');p={k:None for k in ('dong','dongKey','roadAddress','hours','closedDays','parking','indoor','outdoor','petSize','restrictions','petFee','description','homepage','licenseNo','lastChecked','petSizeSmall','petSizeMedium','petSizeLarge','floorAllowed','terrace','carrierRequired','vaccinationCheck','menu','imageRights','kakaoPlaceId','kakaoMapUrl')};p.update(id=pid,sido=si,sigungu=gu,address=r['address'],lat=a,lng=b,phone=r['phone'] or None,name=r['name'],category=cat,services=[cat],subType='관광공사 등록',verified=False,tags=['관광공사 등록'],registryCategories=[],source='한국관광공사 반려동물 동반여행 공공데이터',sourceUrl=SOURCE,geoSource='public-data' if a is not None else None,geoPrecision='exact' if a is not None else None,updatedAt=r['checkedOn']);places.append(p);byname[(si,name)].append(p);byaddr[(si,ak)].append(p);status='new'
   # Do not override contradictory existing operator/public data. Preserve source wording separately.
   if not p.get('restrictions') and r['pet'].get('acmpyNeedMtr'):p['restrictions']=r['pet']['acmpyNeedMtr']
-  p['tourism']={'contentId':r['contentId'],'checkedOn':r['checkedOn'],'pet':r['pet'],'sourceUrl':SOURCE};p['tourPhoto']=next((ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')),None);p['tourPhotos']=[ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')];audit.append({'contentId':r['contentId'],'status':status,'placeId':p['id']})
+  p['tourism']={'contentId':r['contentId'],'checkedOn':r['checkedOn'],'pet':r['pet'],'sourceUrl':SOURCE};p['tourPhoto']=next((ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')),None);p['tourPhotos']=[ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')];audit.append({'contentId':r['contentId'],'status':status,'placeId':p['id'],'licensedPhoto':bool(p['tourPhoto'])})
  return audit
+def report(src,places,audit):
+ """Snapshot counts, not claims about image URL availability or physical visits."""
+ snap=read(src);counts=collections.Counter(x['status'] for x in audit)
+ ids={x['placeId'] for x in audit if x['status']=='matched'}
+ new={x['placeId'] for x in audit if x['status']=='new'}
+ byid={p['id']:p for p in places};existing_ids=ids-new
+ matched_photos={i for i in existing_ids if byid[i].get('tourPhoto')}
+ new_photos={i for i in new if byid[i].get('tourPhoto')}
+ eligible=counts['matched']+counts['new']+counts['manual-review']
+ # The denominator includes eligible records needing manual review, excludes unsupported categories.
+ return {'snapshot_status':snap.get('status','unknown'),'last_attempt':snap.get('lastAttempt'),'last_complete_list':snap.get('lastCompleteList'),'batch_calls':snap.get('calls',0),'source_records':len(snap['records']),'eligible_records':eligible,'matched_records':counts['matched'],'matched_existing_places':len(existing_ids),'match_rate_pct':round(100*counts['matched']/eligible,2) if eligible else None,'new_records':counts['new'],'new_places':len(new),'manual_review_records':counts['manual-review'],'unsupported_records':counts['unsupported-category'],'matched_existing_with_licensed_photo':len(matched_photos),'new_with_licensed_photo':len(new_photos),'total_places_with_tour_photo':len(matched_photos|new_photos),'tour_photo_used_as_cover':sum(not byid[i].get('ownerPhoto') for i in matched_photos|new_photos),'detail_complete_records':sum(bool(r.get('detailDone')) for r in snap['records']),'image_complete_records':sum(bool(r.get('imageDone')) for r in snap['records'])}
+
 if __name__=='__main__':
  src=pathlib.Path(__file__).parent/'source';key=os.getenv('TOURAPI_SERVICE_KEY','').strip()
  if not key:print('TourAPI disabled: no key')

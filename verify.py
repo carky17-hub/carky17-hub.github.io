@@ -171,7 +171,7 @@ from app_release import asset_links
 assert load(S/'.well-known/assetlinks.json')==asset_links()
 home=(S/'index.html').read_text(encoding='utf-8')
 boot=json.loads(re.search(r'<script type="application/json" id="homeBoot">(.*?)</script>',home,re.S)[1])
-seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,not (p.get('ownerPhoto') or p.get('tourPhoto')),'동물병원' in (p.get('services') or []),*ops_rank(p),tier(p),not exact_coord(p),p['id']))
+seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not exact_coord(p),p['id']))
 assert boot['total']==len(seoul) and boot['mapped']==sum(map(exact_coord,seoul))
 assert [p['id'] for p in boot['rows']]==[p['id'] for p in seoul[:12]]
 assert all(x['key']==lookup[x['id']] and all(x[f]==by[x['id']].get(f) for f in m['fields']) for x in boot['rows'])
@@ -204,7 +204,7 @@ print('v1.9 compact index verified')
 geo=collections.defaultdict(list)
 for p in a:
  if exact_coord(p) and display_services(p):geo[lookup[p['id']]].append((p['lat'],p['lng']))
-assert m['version']==220
+assert m['version']==230
 for sh in m['shards']:
  pts=geo[sh['key']];expected_bounds=[min(x[0] for x in pts),min(x[1] for x in pts),max(x[0] for x in pts),max(x[1] for x in pts)] if pts else None
  assert sh['bounds']==expected_bounds,sh['key']
@@ -225,11 +225,16 @@ for p in a:
  h=(S/'place'/p['id']/'index.html').read_text();assert h.count('class="panel unknown-summary"')<=1
  assert ('data-compare=' in h)==(score(p) is not None)
  assert ('data-hero-rating' in h)==(score(p) is not None)
-assert 'eg-public-v220-core' in (S/'sw.js').read_text()
+assert 'eg-public-v230-core' in (S/'sw.js').read_text()
 print('v2.1 routing schema, comparison, attribution slot and cache version PASS')
 # v2.2: own ratings, image license and curation integrity.
 from tourapi import licensed
-assert 'eg-place-card' in home and '/recommendation-policy/' in home and '사진 있는 추천 장소' in home
+from cards22 import curated as curated22
+from tourapi import report as tour_report
+assert 'eg-place-card' in home and 'eg-art23' in home
+expected_curation=curated22(a,lookup)
+assert ('id="curatedData"' in home)==bool(expected_curation)
+assert load(S/'data/tourapi-summary.json')==tour_report(src,a,load(S/'data/tourapi-audit.json'))
 assert re.search(r'/core\.js\?v=[0-9a-f]{16}',home) and re.search(r'/bundle\.css\?v=[0-9a-f]{16}',home) and re.search(r'/discovery\.js\?v=[0-9a-f]{16}',home)
 assert load(S/'release.json')['version']==re.search(r'/core\.js\?v=([0-9a-f]{16})',home)[1]
 assert 'skipWaiting()' in (S/'sw.js').read_text() and 'clients.claim()' in (S/'sw.js').read_text()

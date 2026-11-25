@@ -6,7 +6,8 @@ ROOT=pathlib.Path(__file__).resolve().parent; SITE=ROOT/'site'; SRC=ROOT/'source
 from settings import SITE_URL as BASE, ALLOW_INDEXING, FORMS_LIVE as ENABLE_FORMS, NAVER_VERIFICATION, GOOGLE_VERIFICATION, POLICY_VERSION, ENABLE_ADFIT, ADFIT_MID, ADFIT_BOTTOM, ENABLE_KAKAO_LINKS, CONTACT_EMAIL
 PREVIEW=not ALLOW_INDEXING
 assert BASE.startswith('https://') and urllib.parse.urlsplit(BASE).netloc and not urllib.parse.urlsplit(BASE).path
-from tourapi import integrate as tour_integrate, PET, SOURCE as TOUR_SOURCE
+from tourapi import integrate as tour_integrate, report as tour_report, PET, SOURCE as TOUR_SOURCE
+from art23 import SCENES, BASE as ART_BASE
 from cards22 import annotate as own_ratings, card as card22, rating as rating22, curated as curated22
 from v13 import funeral_places,funeral_seo,match,extra_paths,content,detail_content,publish_pages,funeral_cta,funeral_actions,fee_notice,is_funeral,neutral_key,reject_funeral_overlays,ROLE,DISCLOSURE,PRIVACY_TEXT
 # v1.3.2 neutral funeral integration
@@ -43,7 +44,7 @@ owner_photos=load_owner_photos(SRC,A,MERGED,SITE)
 own_ratings(A,reviews)
 (SITE/'bundle.css').write_text('\n'.join(line.strip() for f in (SITE/'style.css',SITE/'v13.css') for line in f.read_text(encoding='utf-8').splitlines() if line.strip()),encoding='utf-8')
 for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js','analytics.js','compare.js')),('discovery.js',('search.js','app.js','search-ui.js'))]:
- (SITE/name).write_text(('globalThis.EGAnalyticsEndpoint='+json.dumps(ANALYTICS_ENDPOINT)+';\n' + 'globalThis.EGKakaoKey='+json.dumps(KAKAO_JS_KEY)+';\n' if name=='core.js' else '')+'\n;\n'.join((SITE/asset).read_text(encoding='utf-8') for asset in assets),encoding='utf-8')
+ (SITE/name).write_text(('globalThis.EGAnalyticsEndpoint='+json.dumps(ANALYTICS_ENDPOINT)+';\n' + 'globalThis.EGKakaoKey='+json.dumps(KAKAO_JS_KEY)+';\n' if name=='core.js' else 'globalThis.EGArt23='+json.dumps({'base':ART_BASE,'scenes':SCENES},ensure_ascii=False)+';\n')+'\n;\n'.join((SITE/asset).read_text(encoding='utf-8') for asset in assets),encoding='utf-8')
 ASSET_HASH=hashlib.sha256(b''.join(f.read_bytes() for f in sorted(SITE.glob('*.js'))+sorted(SITE.glob('*.css')))).hexdigest()[:16]
 E=lambda x:html.escape(str(x if x is not None else ''),quote=True)
 def fmt(x):
@@ -112,7 +113,7 @@ for p in A:
 dump('data/nearby-index.json',{'version':1,'groups':sorted(near_groups.items())})
 HOME_FIELDS=tuple(fields)
 HOME_KEYS={pid:key for g in lookup.values() for pid,key in g.items()}
-dump('data/manifest.json',dict(version=220,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
+dump('data/manifest.json',dict(version=230,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
 # static region filters; only clear administrative token prefixes, no fuzzy matching
 category={'grooming':'미용','hotel':'호텔·유치원','hospital':'동물병원','cafe':'카페','restaurant':'식당','travel':'여행지','stay':'숙소','playground':'놀이터','ossuary':'장례·추모','funeral':'장례·추모'}
 idx=collections.defaultdict(list)
@@ -315,12 +316,17 @@ dump('release.json',{'version':ASSET_HASH})
 (ROOT/'deploy'/'redirects.json').write_text(json.dumps(redirects,ensure_ascii=False,indent=2))
 
 # v1.6 first-screen snapshot; actual full search loads only on interaction.
-home_rows=sorted((p for p in A if p['sido']=='서울특별시' and display_services(p)),key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,not (p.get('ownerPhoto') or p.get('tourPhoto')),'동물병원' in (p.get('services') or []),*ops_rank(p),tier(p),not coord(p),p['id']))
+home_rows=sorted((p for p in A if p['sido']=='서울특별시' and display_services(p)),key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not coord(p),p['id']))
 home_boot={'rows':[dict({f:p.get(f) for f in HOME_FIELDS},sido=p['sido'],key=HOME_KEYS[p['id']]) for p in home_rows[:12]],'total':len(home_rows),'mapped':sum(map(coord,home_rows))}
 def home_card(p):return card22(p,HOME_KEYS[p['id']])
 home=(SRC/'home-template.html').read_text().replace('<!--PLACE_COUNT-->',f'{len(A):,}');home=home.replace('<!--SEO_HEAD-->',f'<link rel="canonical" href="{E(url("/"))}">'+social('어디가개 | 반려동물 동반 장소 찾기','반려동물과 함께 갈 수 있는 식당, 카페, 숙소를 찾아보세요.','/')+jsld(listld(home_rows[:12])));home=home.replace('<!--CURATION-->',curated22(A,HOME_KEYS));home=home.replace('<!--STATIC_HOME-->',''.join(home_card(p) for p in home_rows[:12])).replace('<!--REGION_LINKS-->',''.join(f'<a href="{E(p)}">{E(t)} ({n:,})</a>' for p,t,n in roots if n));home=re.sub(r'<footer>.*?</footer>',lambda _:FOOT,home,flags=re.S);home=home.replace('</head>',('<meta name="robots" content="noindex,follow">' if PREVIEW else '')+'<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><link rel="apple-touch-icon" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><script src="/core.js" defer></script></head>');home=home.replace('/style.css','/bundle.css').replace('<script src="/hours.js" defer></script>','').replace('<script src="nearby.js" defer></script><script src="app.js" defer></script>','<script src="/discovery.js" defer></script>');home=home.replace('<footer>','<section class="wrap section"><h2>장례·추모 안내</h2><a class="btn" href="/funeral/">장례·추모</a> <a class="btn" href="/funeral/guide/">장례 가이드</a> <a class="btn" href="/memorial/rituals/">천도재·위령재</a></section><footer>',1);home=home.replace('<footer>',(launch_markup(True,POLICY_VERSION) if ENABLE_FORMS else '<aside id="launch" class="launch-banner wrap"><p>출시 알림 문의</p>'+contact_markup()+'</aside>')+'<footer>',1);home=home.replace('<!--HOME_BOOT-->', '<script type="application/json" id="homeBoot">'+json.dumps(home_boot,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')+'</script>');write('index.html',home)
-page('/recommendation-policy/','사진 추천 기준 | 어디가개','사진과 정보 출처 기준을 공개합니다.','<h1>사진 추천 기준</h1><p>한국관광공사 이용 허락 사진 또는 운영 승인된 자체 사진이 있는 장소를 소개합니다. 사진이 있어도 품질·영업·동반 가능성을 보증하지 않습니다. 광고 구매, Google 평점은 추천 산식에 반영하지 않습니다. 장례업체는 제외합니다.</p><p>승인 사진 여부 → 관광공사 사진 여부 → 정보 충실도 → 고유 ID 순으로 선정합니다. 지역·업종별 최대 8곳을 보여주며 사진이 없으면 비워 둡니다.</p><a href="/review-policy/">후기 운영 원칙</a>')
+page('/recommendation-policy/','사진 추천 기준 | 어디가개','사진과 정보 출처 기준을 공개합니다.','<h1>사진 추천 기준</h1><p>한국관광공사 이용 허락 사진 또는 운영 승인된 자체 사진이 있는 장소를 소개합니다. 사진이 있어도 품질·영업·동반 가능성을 보증하지 않습니다. 광고 구매, Google 평점은 추천 산식에 반영하지 않습니다. 장례업체는 제외합니다.</p><p>승인 사진 여부 → 관광공사 사진 여부 → 정보 충실도 → 고유 ID 순으로 선정합니다. 지역·업종별 최대 8곳을 보여주며 추천 사진이 없으면 영역을 숨깁니다.</p><a href="/review-policy/">후기 운영 원칙</a>')
 dump('data/tourapi-audit.json',tour_audit)
+tour_summary=tour_report(SRC,A,tour_audit)
+dump('data/tourapi-summary.json',tour_summary)
+print('TourAPI match report:',json.dumps(tour_summary,ensure_ascii=False))
+if os.getenv('GITHUB_STEP_SUMMARY'):
+ with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as f:f.write('\n### TourAPI 매칭 리포트\n'+''.join(f'- {k}: {v}\n' for k,v in tour_summary.items()))
 from app_release import asset_links
 write('.well-known/assetlinks.json',json.dumps(asset_links(),ensure_ascii=False,indent=2))
 write('.nojekyll','')

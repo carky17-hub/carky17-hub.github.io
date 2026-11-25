@@ -30,7 +30,7 @@ def annotate(places,src,google_ids,merged):
    except (ValueError,TypeError,AssertionError):pass
   p['latestEvidenceDate']=max(valid,default=None)
 
-def rank(p):return (-int(bool(p.get('ownerPhoto') or p.get('tourPhoto'))),-int(bool(p.get('googleMatchConfirmed'))),-(p.get('infoCompleteness') or 0))
+def rank(p):return (-int(bool(p.get('ownerPhoto') or p.get('tourPhoto'))),int('동물병원' in (p.get('services') or [])),-int(bool(p.get('googleMatchConfirmed'))),-(p.get('infoCompleteness') or 0))
 
 def compact_index(index):
  table=[]; ids={}
