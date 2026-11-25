@@ -337,6 +337,8 @@ if os.getenv('GITHUB_STEP_SUMMARY'):
  with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as f:f.write('\n### TourAPI 매칭 리포트\n'+''.join(f'- {k}: {v}\n' for k,v in tour_summary.items()))
 from app_release import asset_links
 write('.well-known/assetlinks.json',json.dumps(asset_links(),ensure_ascii=False,indent=2))
+from app28 import prepare_manifest
+prepare_manifest(ROOT,SITE)
 write('.nojekyll','')
 dump('release.json',{'version':ASSET_HASH})
 assert len(sitemap)<=50000, 'Sitemap URL limit exceeded; split sitemap before deploying.'
