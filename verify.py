@@ -3,15 +3,19 @@ import json,re,collections,pathlib,xml.etree.ElementTree as ET,urllib.parse,math
 R=pathlib.Path(__file__).resolve().parent; S=R/'site'; src=R/'source'
 load=lambda p:json.loads(p.read_text(encoding='utf-8'))
 from source_data import load_source
-a=load_source(src/'places-all.json'); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
+from v13 import funeral_places,funeral_seo,match,extra_paths,is_funeral,neutral_key,reject_funeral_overlays
+# v1.3.2 neutral funeral verification
+a=load_source(src/'places-all.json'); a+=funeral_places(src,a); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
 from settings import ENABLE_KAKAO_LINKS,ENABLE_ADFIT,RELEASE_MODE,FORMS_LIVE,FORM_ENDPOINT
 from region_rules import dong_key,display_services,seo_pages,recount
-seo,alias_redirects=seo_pages(seo)
+seo,alias_redirects=seo_pages(seo+funeral_seo(a))
 assert all(p.get('geoSource') in (None,'public-data','소상공인시장진흥공단 상가(상권)정보 2026-09') and not p.get('kakaoPlaceId') and not p.get('kakaoMapUrl') and (not p.get('roadAddress') or p.get('geoSource')=='소상공인시장진흥공단 상가(상권)정보 2026-09') for p in a)
 if not ENABLE_KAKAO_LINKS:
  for p in a:p['kakaoPlaceId']=None;p['kakaoMapUrl']=None
 from admin import apply,schedules,active
-snapshot=load(R/'build-admin-snapshot.json'); assert apply(a,snapshot)==report['admin']['corrections']
+snapshot=load(R/'build-admin-snapshot.json'); reject_funeral_overlays(snapshot,a); assert apply(a,snapshot)==report['admin']['corrections']
+from hospital import annotate,telephone
+annotate(a,src)
 by={p['id']:p for p in a}
 assert len(by)==len(a)==m['total']; assert not by.keys()&merged.keys() and set(merged.values())<=by.keys()
 seen={}; actual=collections.Counter(); idx=collections.defaultdict(set)
@@ -28,8 +32,9 @@ for sh in m['shards']:
  assert all(lookup[p['id']]==sh['key'] for p in load(S/sh['full']))
 assert load(S/'data/merged-ids.json')==merged
 ld_re=re.compile(r'<script type="application/ld\+json">(.*?)</script>',re.S)
-row_re=re.compile(r'<li class="seo-row"><a href="/place/(p\d+)/"')
+row_re=re.compile(r'<li class="seo-row"><a href="/place/([pf]\d+)/"')
 expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/'}
+expected.update(extra_paths(src))
 regionpaths={x['path'].rstrip('/')+'/' for x in seo}
 meta_keys=['og:title','og:description','og:url','og:image','og:type','twitter:card','naver-site-verification','google-site-verification']
 def valid_meta(h):
@@ -46,7 +51,7 @@ def exact_coord(p):return p.get('geoPrecision')=='exact' and all(type(p.get(k)) 
 fields=('phone','hours','closedDays','parking','indoor','outdoor','petSize','petSizeSmall','petSizeMedium','petSizeLarge','petFee','restrictions','floorAllowed','terrace','carrierRequired','vaccinationCheck','menu','description','homepage')
 def tier(p):return 0 if '식약처 인증' in (p.get('tags') or []) else 1 if '등록업체' in (p.get('tags') or []) else 2 if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터')) else 3
 def known(v):return v not in (None,'',[],{}) and (not isinstance(v,str) or bool(v.strip()) and v.strip() not in ('확인 필요','미확인','정보 없음','-'))
-def sortkey(p,sv):return (tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
+def sortkey(p,sv):return (1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
 related_count=0
 areas={}
 empty_paths=set()
@@ -54,7 +59,7 @@ report_by_path={r['path']:r for r in report['regionCounts']}
 assert len(report_by_path)==len(seo)
 
 for item in seo:
- f=item['filter'];sv=f['service'] if isinstance(f['service'],list) else [f['service']];ids=set().union(*(idx[v,f['sido'],f['sigungu'],dong_key(f['sido'],f['sigungu'],f['dongKey'])] for v in sv));path=item['path'].rstrip('/')+'/';expected.add(path);areas[path]=ids
+ f=item['filter'];sv=f['service'] if isinstance(f['service'],list) else [f['service']];ids=set().union(*(idx[v,f['sido'],f['sigungu'],dong_key(f['sido'],f['sigungu'],f['dongKey'])] for v in sv));ids={i for i in ids if match(by[i],f)};path=item['path'].rstrip('/')+'/';expected.add(path);areas[path]=ids
  h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');links=row_re.findall(h);ld=json.loads(ld_re.search(h)[1]); assert len(links)==len(ids) and set(links)==ids and ld['numberOfItems']==len(ids) and [x['url'].split('/')[-2] for x in ld['itemListElement']]==links;assert links==[p['id'] for p in sorted((by[i] for i in ids),key=lambda p:sortkey(p,sv))];assert '<link rel="canonical"' in h and '<meta name="description"' in h
  assert report_by_path[path]['actualCount']==len(ids) and report_by_path[path]['sourceCount']==item['count']
  if not ids:empty_paths.add(path)
@@ -71,6 +76,10 @@ for path,rs in ads.items():
 geo=collections.Counter();kakao_count=0;road_count=0
 for p in a:
  i=p['id'];path='/place/'+i+'/';expected.add(path);h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');ld=json.loads(ld_re.search(h)[1]);exact=p['geoPrecision']=='exact' and all(type(p[k]) in (int,float) and math.isfinite(p[k]) and 0<abs(p[k])<=lim for k,lim in [('lat',90),('lng',180)])
+ if '동물병원' in p['services']:
+  assert ('24시간 운영 (운영시간 데이터상)' in h)==bool(p.get('hours24Data'))
+  assert ('야간 응급진료 확인 · 공식 출처' in h)==bool(p.get('nightEmergencySource'))
+  if telephone(p.get('phone')):assert 'href="tel:'+telephone(p['phone'])+'"' in h
  assert h.count('class="panel premium-detail"')==len(premium.get(i,[]))
  assert ('영업 여부 확인 필요' in h)==('동물병원' in p['services'] and not p.get('openStatusSource'));assert '위치 정보 출처' in h
  kid=p.get('kakaoPlaceId');road=p.get('roadAddress');assert '<b>도로명주소</b>' in h
@@ -82,7 +91,8 @@ for p in a:
 
 for o,n in merged.items():
  h=(S/'place'/o/'index.html').read_text(encoding='utf-8');assert f'content="0;url=/place/{n}/"' in h and f'href="{report["siteUrl"]}/place/{n}/"' in h
-locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)==len(set(locs)) and set(locs)==expected-empty_paths
+assert (S/'sitemap.xml').stat().st_size<=52428800
+locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-empty_paths-{'/contribute/'}
 redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6+len(alias_redirects)
 for old,new in redirects.items():
  assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();h=(S/old.strip('/')/'index.html').read_text();assert f'content="0;url={new}"' in h and 'href="'+report['siteUrl']+urllib.parse.quote(new,safe='/-._~')+'"' in h
@@ -108,3 +118,30 @@ assert 'Netlify' not in privacy
 assert all(redirects.get(k)==v for k,v in alias_redirects.items())
 assert ('Disallow: /\n' in (S/'robots.txt').read_text())==report['preview']
 print(json.dumps({'relatedLinks':related_count,'regionFaqPages':len(seo),'breadcrumbPages':len(a)+len(seo),'socialMetaPages':len(expected)+len(redirects),'uniquePlaces' :len(a),'regionPages':len(seo),'regionMismatch':0,'redirects':len(redirects),'sitemapUrls':len(locs),'htmlFiles':len(expected)+len(redirects),'coordinateCounts':geo,'serviceCounts':actual,'kakaoLinks':kakao_count,'roadAddresses':road_count,'aliasRedirects':len(alias_redirects),'emptyRegionPages':len(empty_paths),'adjustedRegionCounts':report['adjustedRegionCounts'],'travelExcluded':report['travelExcluded'],'formsEnabled':report['formsEnabled'],'indexingAllowed':not report['preview'],'admin':report['admin'],'status':'PASS'},ensure_ascii=False,indent=2))
+
+from v13 import DISCLOSURE, ROLE, ritual_data
+def verify_funeral_output(root):
+ root=pathlib.Path(root);src=root/'source';site=root/'site';rows=funeral_places(src,[]);ids=[p['id'] for p in rows];assert len(ids)==89
+ def read(path):return (site/path.strip('/')/'index.html').read_text(encoding='utf-8')
+ def row_ids(h):return re.findall(r'<li class="seo-row"><a href="/place/(f\d+)/"',h)
+ def no_paid(h):
+  assert 'class="panel premium-detail"' not in h and 'data-slot=' not in h and '추천 매장' not in h and '이 자리에 내 매장 올리기' not in h and 'kakao_adfit' not in h and 'kakao_ad_area' not in h and 'data-ad-unit=' not in h and '인기 매장' not in h and 'BEST' not in h
+ h=read('/funeral/');assert row_ids(h)==ids and DISCLOSURE in h;no_paid(h)
+ for s in funeral_seo(rows):
+  h=read(s['path']);f=s['filter'];from v13 import match
+  want=[p['id'] for p in rows if p['sido']==f['sido'] and (not f['sigungu'] or p['sigungu']==f['sigungu']) and (not f['dongKey'] or p['dongKey']==f['dongKey']) and match(p,f)]
+  assert row_ids(h)==want and len(want)==s['count'],s['path'];no_paid(h);assert DISCLOSURE in h
+ for p in rows:
+  h=read('/place/'+p['id']+'/');assert DISCLOSURE in h and ROLE in h and '어디가개 상담 신청' in h and 'funeral-actions' in h;no_paid(h)
+  if p.get('phone'):assert 'href="tel:'+re.sub(r'[^0-9+]','',p['phone'])+'"' in h
+  else:assert '업체 직접 문의처 확인 (전화번호 미제공)' in h
+  assert '공공 목록에 기재된 서비스' in h
+  assert not re.search(r'\d[\d,]*\s*만원|\d[\d,]*\s*원\s*(?:부터|~)',h),p['id']
+ g=read('/funeral/guide/');assert DISCLOSURE in g and ROLE in g and '21그램' not in g and '35만원' not in g;no_paid(g)
+ t=read('/terms/');assert ROLE in t and DISCLOSURE in t
+ p=read('/privacy/');assert '희망 연락 시간' in p and '반려동물 종류 및 체중(선택)' not in p
+ for r in ritual_data(src):assert '출처 확인일 기준, 방문·문의 전 확인' in read('/memorial/rituals/'+r['slug']+'/')
+ print('v1.3.2 funeral verification PASS:',len(rows),'places;',len(funeral_seo(rows)),'region pages')
+
+
+verify_funeral_output(R)

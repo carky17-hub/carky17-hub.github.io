@@ -50,11 +50,17 @@ FORM_PROVIDER=os.environ.get('FORM_PROVIDER','').strip()
 FORM_PROVIDER_COUNTRY=os.environ.get('FORM_PROVIDER_COUNTRY','').strip()
 FORM_PROVIDER_CONTACT=os.environ.get('FORM_PROVIDER_CONTACT','').strip()
 FORM_PROVIDER_RETENTION=os.environ.get('FORM_PROVIDER_RETENTION','').strip()
-FORM_INTERNATIONAL_TRANSFER=flag('FORM_INTERNATIONAL_TRANSFER')
+_transfer_raw=os.environ.get('FORM_INTERNATIONAL_TRANSFER','').strip().lower()
+if _transfer_raw not in ('','true','false'):raise ValueError('FORM_INTERNATIONAL_TRANSFER must be true or false')
+FORM_INTERNATIONAL_TRANSFER=_transfer_raw=='true'
 def https_url(v):
  u=urlsplit(v);return u.scheme=='https' and bool(u.hostname) and not u.username and not u.password and not u.fragment and not any(c.isspace() for c in v)
 if FORM_ENDPOINT and not https_url(FORM_ENDPOINT):raise ValueError('FORM_ENDPOINT must be a public HTTPS URL')
 if KAKAO_CHANNEL_URL and (not https_url(KAKAO_CHANNEL_URL) or urlsplit(KAKAO_CHANNEL_URL).hostname!='pf.kakao.com'):raise ValueError('Use a public https://pf.kakao.com/ channel URL')
 FORMS_LIVE=ENABLE_FORMS and bool(FORM_ENDPOINT)
-if FORMS_LIVE and 'FORM_INTERNATIONAL_TRANSFER' not in os.environ:raise RuntimeError('Explicitly confirm whether form data is transferred abroad.')
+if FORMS_LIVE and _transfer_raw not in ('true','false'):raise RuntimeError('Explicitly confirm whether form data is transferred abroad.')
 if FORMS_LIVE and not all((FORM_PROVIDER,FORM_PROVIDER_COUNTRY,FORM_PROVIDER_CONTACT,FORM_PROVIDER_RETENTION)):raise RuntimeError('Configure form processor, country, contact and retention before enabling online forms.')
+
+# Formspree current endpoint format; generic compatible HTTPS POST remains supported.
+if FORM_ENDPOINT and urlsplit(FORM_ENDPOINT).hostname=="formspree.io" and not __import__("re").fullmatch(r"/f/[A-Za-z0-9]+",urlsplit(FORM_ENDPOINT).path):raise ValueError("Use https://formspree.io/f/<form-id>")
+FORM_FILE_UPLOADS=flag("FORM_FILE_UPLOADS")
