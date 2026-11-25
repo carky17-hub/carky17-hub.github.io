@@ -28,5 +28,8 @@
   candidates.sort((a,b)=>b.score-a.score||a.detail.localeCompare(b.detail,'ko')||a.title.localeCompare(b.title,'ko')||a.path.localeCompare(b.path));const out=[],seen=new Set();for(const a of candidates){if(seen.has(a.path))continue;seen.add(a.path);out.push(a);if(out.length>=limit)break}return out;
  }
  function decode(index){if(index.version!==2)return index;const t=index.strings,v=x=>x===-1?null:t[x];return {version:1,places:index.places.map(r=>[r[0],r[1],...r.slice(2).map(v)]),regions:index.regions.map(r=>[r[0],r[1],v(r[2]),v(r[3]),v(r[4]),Array.isArray(r[5])?r[5].map(v):v(r[5]),r[6]])}}
- const api={norm,initials,distance,matches,suggest,decode};globalThis.EGSearch=api;
+ // A conservative Bloom filter: any absent bigram rules out a shard, false positives are harmless.
+ function canRoute(raw){const p=String(raw||'').trim().split(/\s+/).map(norm).filter(Boolean);return p.length>0&&p.every(q=>/^[가-힣ㄱ-ㅎ0-9]+$/.test(q))&&p.some(q=>q.length>=2)&&!(p.length===1&&Object.values(SERVICES).flat().some(v=>norm(v)===p[0]))}
+ function routeShards(index,raw,shards){const parts=String(raw||'').trim().split(/\s+/).map(norm).filter(Boolean);if(!canRoute(raw)||index?.version!==1||index.bits!==32768||!parts.length||parts.some(q=>!/^[가-힣ㄱ-ㅎ0-9]+$/.test(q)))return shards;const pairs=parts.flatMap(q=>Array.from(q).slice(1).map((b,i)=>[q.charCodeAt(i),b.charCodeAt(0)]));if(!pairs.length)return shards;return shards.filter(sh=>{if(sh.services?.includes('장례·추모'))return true;try{const bits=atob(index.shards[sh.key]);if(bits.length!==4096)return true;return pairs.every(([a,b])=>[(a*131+b*17)&32767,(a*8191+b*257)&32767].every(h=>(bits.charCodeAt(h>>3)&(1<<(h&7)))!==0))}catch{return true}})}
+ const api={norm,initials,distance,matches,suggest,decode,routeShards,canRoute,terms};globalThis.EGSearch=api;
 })();
