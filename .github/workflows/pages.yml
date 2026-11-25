@@ -14,6 +14,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      NAVER_WORKER_URL: ${{ vars.NAVER_WORKER_URL }}
+      NAVER_SEARCH_APPROVED: ${{ vars.NAVER_SEARCH_APPROVED || 'false' }}
+      NAVER_IMAGE_APPROVED: ${{ vars.NAVER_IMAGE_APPROVED || 'false' }}
+      NAVER_MATCH_APPROVED: ${{ vars.NAVER_MATCH_APPROVED || 'false' }}
+      GOOGLE_MODE: ${{ vars.GOOGLE_MODE || 'all' }}
+      GOOGLE_WORKER_URL: ${{ vars.GOOGLE_WORKER_URL }}
+      IMAGE_ON_CARDS: ${{ vars.IMAGE_ON_CARDS || 'false' }}
+      NAVER_BLOG_WORKER_URL: ${{ vars.NAVER_BLOG_WORKER_URL }}
+      REVIEW_APIS_APPROVED: ${{ vars.REVIEW_APIS_APPROVED || 'false' }}
+      GOOGLE_PHOTOS_ENABLED: ${{ vars.GOOGLE_PHOTOS_ENABLED || 'false' }}
       PYTHONUTF8: "1"
       SITE_URL: https://eodigagae.com
       ALLOW_INDEXING: ${{ vars.ALLOW_INDEXING || 'false' }}
