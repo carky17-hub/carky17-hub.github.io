@@ -1,5 +1,5 @@
 """KTO factual data + explicitly licensed image URLs; no images copied."""
-import collections, datetime as dt, json, math, os, re, urllib.parse, urllib.request, pathlib, unicodedata
+import urllib.error, collections, datetime as dt, json, math, os, re, urllib.parse, urllib.request, pathlib, unicodedata
 BASE='https://apis.data.go.kr/B551011/KorPetTourService2'
 SOURCE='https://www.data.go.kr/data/15135102/openapi.do'
 REGIONS=dict(zip(['서울','인천','대전','대구','광주','부산','울산','세종','경기','강원','충북','충남','경북','경남','전북','전남','제주'],['서울특별시','인천광역시','대전광역시','대구광역시','광주광역시','부산광역시','울산광역시','세종특별자치시','경기도','강원특별자치도','충청북도','충청남도','경상북도','경상남도','전북특별자치도','전라남도','제주특별자치도']))
@@ -33,15 +33,28 @@ def read(src):return json.loads((src/'tourapi.json').read_text())
 class API:
  def __init__(self,key,limit):self.key=urllib.parse.unquote(key);self.limit=limit;self.calls=0
  def call(self,op,**params):
-  if self.calls>=self.limit:raise RuntimeError('quota')
-  self.calls+=1; query=urllib.parse.urlencode({'serviceKey':self.key,'MobileOS':'ETC','MobileApp':'eodigagae','_type':'json',**params});
-  try:
-   with urllib.request.urlopen(BASE+'/'+op+'?'+query,timeout=20) as f: r=json.load(f)['response']
-   if str(r['header']['resultCode']) not in ('0000','00'):raise ValueError('provider error')
-   body=r['body']; items=body.get('items') or {}; items=items.get('item',[]) if isinstance(items,dict) else [];items=[items] if isinstance(items,dict) else items
-   if not isinstance(items,list):raise ValueError('invalid items')
-   return items,int(body.get('totalCount',len(items)))
-  except Exception:raise RuntimeError('TourAPI response failed: '+op) from None
+  import time
+  last='unknown'
+  for attempt in range(3):
+   if self.calls>=self.limit:raise RuntimeError('quota')
+   self.calls+=1; query=urllib.parse.urlencode({'serviceKey':self.key,'MobileOS':'ETC','MobileApp':'eodigagae','_type':'json',**params})
+   try:
+    time.sleep(0.15)
+    with urllib.request.urlopen(BASE+'/'+op+'?'+query,timeout=30) as f: raw=f.read().decode('utf-8','replace')
+    try:r=json.loads(raw)['response']
+    except Exception:
+     m=re.search(r'<(?:returnAuthMsg|resultMsg|errMsg)>([^<]{0,120})',raw);last='non-json '+(m.group(1) if m else raw[:80].replace(self.key,'***'));raise ValueError(last)
+    code=str(r['header'].get('resultCode'))
+    if code not in ('0000','00'):last='provider '+code+' '+str(r['header'].get('resultMsg',''))[:80];raise ValueError(last)
+    body=r['body']; items=body.get('items') or {}; items=items.get('item',[]) if isinstance(items,dict) else [];items=[items] if isinstance(items,dict) else items
+    if not isinstance(items,list):last='invalid items';raise ValueError(last)
+    return items,int(body.get('totalCount',len(items)))
+   except urllib.error.HTTPError as e:last='http '+str(e.code)
+   except Exception as e:
+    if last=='unknown':last=type(e).__name__
+   print('TourAPI retry',op,attempt+1,last.replace(self.key,'***'),flush=True)
+   time.sleep(3*(attempt+1))
+  raise RuntimeError('TourAPI response failed: '+op+' ('+last.replace(self.key,'***')[:120]+')')
  def pages(self,op,**params):
   page=1;got=0
   while True:
@@ -52,14 +65,22 @@ class API:
 
 def sync(src,api):
  old=read(src); day=today()
- if old.get('lastAttempt')==day:return old
+ if old.get('lastAttempt')==day and old.get('status')=='complete':return old
  result={'lastAttempt':day,'records':old['records'],'lastCompleteList':old.get('lastCompleteList'),'calls':0,'status':'partial'}
  try:
   fresh={}
+  failed_regions=[]
   for code in CODES:
-   for r in api.pages('areaBasedList2',lDongRegnCd=code,arrange='A'):
-    p=basic(r)
-    if p:fresh[p['contentId']]=p
+   try:
+    for r in api.pages('areaBasedList2',lDongRegnCd=code,arrange='A'):
+     p=basic(r)
+     if p:fresh[p['contentId']]=p
+   except RuntimeError as e:
+    if str(e)=='quota':raise
+    failed_regions.append(code);print('TourAPI region skipped',code,e,flush=True)
+  if failed_regions:
+   keep={r['contentId']:r for r in old['records'] if any(r.get('address','').startswith(n) for c,n in zip(CODES,REGIONS.values()) if c in failed_regions)}
+   for cid,r in keep.items():fresh.setdefault(cid,r)
   if not fresh:raise RuntimeError('empty inventory')
   prior={r['contentId']:r for r in old['records']}
   for cid,r in fresh.items():
@@ -81,7 +102,7 @@ def sync(src,api):
     if str(e)=='quota':raise
     errors+=1;consecutive+=1
     if consecutive>=5:raise RuntimeError('provider failures; resume next day') from None
-  result['status']='complete' if not errors else 'partial detail failures'
+  result['status']='complete' if not errors and not failed_regions else ('partial detail failures' if errors else 'partial regions '+','.join(failed_regions))
  except RuntimeError as e:result['status']=str(e)
  result['calls']=api.calls
  return result
