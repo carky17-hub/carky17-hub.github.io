@@ -3,16 +3,27 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      refresh_tourapi:
+        description: Collect public TourAPI data (once per KST day)
+        type: boolean
+        default: false
+  schedule:
+    - cron: "30 18 * * *" # 03:30 KST
 permissions:
   contents: read
   pages: write
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     env:
       KAKAO_JS_KEY: ${{ vars.KAKAO_JS_KEY }}
       ENABLE_ANALYTICS: ${{ vars.ENABLE_ANALYTICS || 'false' }}
@@ -66,7 +77,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Daily TourAPI batch
+        if: (github.event_name == 'schedule' || inputs.refresh_tourapi == true) && github.run_attempt == 1 && github.ref == 'refs/heads/main'
+        env:
+          TOURAPI_SERVICE_KEY: ${{ secrets.TOURAPI_SERVICE_KEY }}
+          TOURAPI_DAILY_LIMIT: ${{ vars.TOURAPI_DAILY_LIMIT || '900' }}
+        run: python3 -X utf8 tourapi.py
       - run: python3 -X utf8 build.py && python3 -X utf8 verify.py
+      - name: Persist verified TourAPI snapshot
+        if: (github.event_name == 'schedule' || inputs.refresh_tourapi == true) && github.run_attempt == 1 && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "eodigagae-data-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add source/tourapi.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update KTO public data snapshot"
+            git push origin HEAD:main
+          fi
       - run: echo "eodigagae.com" > site/CNAME && touch site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
