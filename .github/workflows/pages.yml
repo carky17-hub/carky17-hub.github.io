@@ -14,6 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      KAKAO_JS_KEY: ${{ vars.KAKAO_JS_KEY }}
+      ENABLE_ANALYTICS: ${{ vars.ENABLE_ANALYTICS || 'false' }}
+      ANALYTICS_WORKER_URL: ${{ vars.ANALYTICS_WORKER_URL }}
       NAVER_WORKER_URL: ${{ vars.NAVER_WORKER_URL }}
       NAVER_SEARCH_APPROVED: ${{ vars.NAVER_SEARCH_APPROVED || 'false' }}
       NAVER_IMAGE_APPROVED: ${{ vars.NAVER_IMAGE_APPROVED || 'false' }}
