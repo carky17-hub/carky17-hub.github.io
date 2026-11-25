@@ -7,6 +7,7 @@ from settings import SITE_URL as BASE, ALLOW_INDEXING, FORMS_LIVE as ENABLE_FORM
 PREVIEW=not ALLOW_INDEXING
 assert BASE.startswith('https://') and urllib.parse.urlsplit(BASE).netloc and not urllib.parse.urlsplit(BASE).path
 from tourapi import integrate as tour_integrate, report as tour_report, PET, SOURCE as TOUR_SOURCE
+from tour24 import detail_html as tour_detail_html
 from art23 import SCENES, BASE as ART_BASE
 from cards22 import annotate as own_ratings, card as card22, rating as rating22, curated as curated22
 from v13 import funeral_places,funeral_seo,match,extra_paths,content,detail_content,publish_pages,funeral_cta,funeral_actions,fee_notice,is_funeral,neutral_key,reject_funeral_overlays,ROLE,DISCLOSURE,PRIVACY_TEXT
@@ -237,6 +238,7 @@ for p in A:
  if isinstance(kid,str) and re.fullmatch(r'[0-9]+',kid):h+=f'<a class="btn primary" href="https://place.map.kakao.com/{kid}" rel="noopener noreferrer" target="_blank">카카오맵에서 보기</a> '
  if coord(p):h+=f'<a class="btn" href="https://map.naver.com/p/search/{urllib.parse.quote(name+" "+(address or area),safe="")}" rel="noopener" target="_blank">지도 검색</a>'
  h+=f' <button class="btn detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button> <a class="btn" href="/owner/?type=correction&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">정보 수정 제안</a> <a class="btn" href="/owner/?type=closure&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">폐업 신고</a> <a class="btn primary" href="/owner/?type=owner&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">사장님 무료 입점 신청</a></div></div>'
+ h+=tour_detail_html(p,PET,TOUR_SOURCE)
  h+=block('동반 조건',p,[f for f in facts if f[1] not in ('petFee','menu')] if is_funeral(p) else facts)
  h+=block('운영시간·휴무',p,[('영업시간','hours'),('휴무일','closedDays'),('영업 여부','operating')])+block('주차',p,[('주차','parking')])+block('연락처',p,[('전화','phone'),('홈페이지','homepage')])+block('출처·확인일',p,[('정보 출처','source'),('위치 정보 출처','geoSource'),('영업 확인 출처','openStatusSource'),('출처 URL','sourceUrl'),('최근 기록상 확인일','latestEvidenceDate'),('원본 정보 확인일','lastChecked'),('데이터 갱신일','updatedAt'),('인허가 번호','licenseNo')])+block('기타 정보',p,[('업종 상세','subType'),('소개','description'),('등록 업종','registryCategories')])
  h+=unknown_summary(p,facts+[('영업시간','hours'),('휴무일','closedDays'),('영업 여부','operating'),('주차','parking'),('전화','phone'),('홈페이지','homepage'),('정보 출처','source'),('위치 정보 출처','geoSource'),('영업 확인 출처','openStatusSource'),('출처 URL','sourceUrl'),('최근 기록상 확인일','latestEvidenceDate'),('원본 정보 확인일','lastChecked'),('데이터 갱신일','updatedAt'),('인허가 번호','licenseNo'),('업종 상세','subType'),('소개','description'),('등록 업종','registryCategories')])
@@ -254,9 +256,6 @@ for p in A:
   h+='<section class="panel"><h2>운영자 확인 정보</h2><ul>'+''.join(f'<li>{E(k)} · {E(v["checkedOn"])} · <a href="{E(v["source"])}" rel="noopener noreferrer" target="_blank">확인 근거</a></li>' for k,v in p['operatorCorrections'].items())+'</ul></section>'
  ph=p.get('phone') if isinstance(p.get('phone'),str) and re.search(r"\d{2,4}-\d{3,4}-\d{4}",p.get('phone') or '') else None
  h+='<div class="m-actions">'+(f'<a class="btn" href="tel:{E(re.sub(r"[^0-9]","",ph))}">📞 전화</a>' if ph else '')+f'<a class="btn" rel="nofollow noopener" target="_blank" href="https://map.naver.com/p/search/{urllib.parse.quote((p.get("sigungu") or "")+" "+p["name"])}">🗺️ 지도·리뷰</a><button class="btn primary detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button></div>'
- if p.get('tourism'):
-  t=p['tourism'];h+='<section class="panel tour-info"><h2>한국관광공사 동반 여행 정보</h2><p>관광공사 등록 · 조회일 '+E(t['checkedOn'])+' · <a href="'+TOUR_SOURCE+'">한국관광공사 원자료</a> · 현장 확인이 아닙니다.</p>'+''.join('<div><b>'+E(PET[k])+'</b><p>'+E(v)+'</p></div>' for k,v in t['pet'].items() if k in PET)+'</section>'
-  if p.get('tourPhotos'):h+='<section class="panel tour-gallery"><h2>한국관광공사 제공 사진</h2>'+''.join('<figure><img loading="lazy" decoding="async" src="'+E(ph['src'])+'" alt="'+E(ph['caption'])+'"><figcaption>한국관광공사 · <a href="'+TOUR_SOURCE+'">출처</a> · 공공누리 '+E(ph['license'])+'유형 · '+E(ph['caption'])+'</figcaption></figure>' for ph in p['tourPhotos'])+'</section>'
  h+=owner_gallery(owner_photos.get(p['id'],[]))
  if not is_funeral(p):h+=f'<section class="panel" id="photo-contribute"><h2>이 장소 사진 올리기</h2><p>직접 촬영한 사진을 보내 주세요. 검수 후 대표 사진으로 채택될 수 있으며, 희망하면 공개 닉네임을 사진 크레딧에 표시합니다. 금전 보상·노출 우대는 없습니다.</p><a class="btn primary" data-eg-event="photo" href="/contribute/?place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}#visitor-photo">이 장소 사진 올리기</a></section>'
  h+=detail_content(p['id'],reviews,photos).replace('?place='+p['id']+'#','?place='+p['id']+'&amp;name='+E(urllib.parse.quote(name))+'#')

@@ -21,6 +21,7 @@ def cover(p):
  kind=p['category'];kind='카페' if kind=='애견카페' else kind
  photo=p.get('ownerPhoto') or p.get('tourPhoto');art=art23(p,kind)
  if photo:
+  art=art.replace('<div class="eg-art','<div hidden class="eg-art',1)
   lic=photo.get('license');credit='한국관광공사 · 공공누리 '+lic+'유형' if lic else photo.get('label','제공 사진')+' · '+photo.get('credit','')
   return f'<div class="eg-card-media"><div class="eg-photo-slot {"contain" if lic else ""}">{art}<img src="{E(photo["src"])}" alt="{E(photo.get("caption"))}" width="400" height="300" loading="lazy" decoding="async" data-card-photo></div><small class="eg-card-credit">{E(credit)}</small></div>'
  return '<div class="eg-card-media">'+art+'</div>'

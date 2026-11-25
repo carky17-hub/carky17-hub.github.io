@@ -1,5 +1,6 @@
 """KTO factual data + explicitly licensed image URLs; no images copied."""
 import urllib.error, collections, datetime as dt, json, math, os, re, urllib.parse, urllib.request, pathlib, unicodedata
+from tour24 import Matcher, collect_detail, eligible, shopping_report, shopping_state
 BASE='https://apis.data.go.kr/B551011/KorPetTourService2'
 SOURCE='https://www.data.go.kr/data/15135102/openapi.do'
 REGIONS=dict(zip(['서울','인천','대전','대구','광주','부산','울산','세종','경기','강원','충북','충남','경북','경남','전북','전남','제주'],['서울특별시','인천광역시','대전광역시','대구광역시','광주광역시','부산광역시','울산광역시','세종특별자치시','경기도','강원특별자치도','충청북도','충청남도','경상북도','경상남도','전북특별자치도','전라남도','제주특별자치도']))
@@ -91,7 +92,7 @@ def sync(src,api):
     else:r['imageDone']=False
   result['records']=list(fresh.values());result['lastCompleteList']=day
   errors=0;consecutive=0
-  for r in sorted([x for x in result['records'] if x['type'] in ('12','14','28','32','39')],key=lambda p:(p['detailDone'] and p['imageDone'],p['checkedOn'],p['contentId'])):
+  for r in sorted([x for x in result['records'] if collect_detail(x)],key=lambda p:(p['detailDone'] and p['imageDone'],p['checkedOn'],p['contentId'])):
    try:
     if not r['detailDone']:
      rows,_=api.call('detailPetTour2',contentId=r['contentId'],numOfRows=10,pageNo=1);r['pet']={k:str(v)[:4000] for x in rows if str(x.get('contentid'))==r['contentId'] for k,v in x.items() if k in PET and v};r['detailDone']=True;r['checkedOn']=day
@@ -113,23 +114,29 @@ def integrate(src,places):
  for p in places:
   if p['id'].startswith('f'):continue
   byname[(p.get('sido'),norm(p['name']))].append(p);byaddr[(p.get('sido'),addrkey(p.get('roadAddress') or p.get('address')))].append(p)
+ matcher=Matcher(places,region,addrkey,point,km,norm)
  audit=[]
  seen=set()
- for r in snap['records']:
+ # Resolve old exact matches first so fuzzy candidates cannot steal their IDs.
+ for r in sorted(snap['records'],key=lambda r:not (eligible(r) and matcher.match(r,strict=True)[0])):
   assert re.fullmatch(r'\d{1,12}',r['contentId']) and r['contentId'] not in seen;seen.add(r['contentId'])
-  if r['type'] not in ('12','14','28','32','39'):
-   audit.append({'contentId':r['contentId'],'status':'unsupported-category'});continue
-  si=region(r['address']); name=norm(r['name']); ak=addrkey(r['address']);a,b=point(r['lng'],r['lat']); candidates=byname[(si,name)];same=[p for p in candidates if ak==addrkey(p.get('roadAddress') or p.get('address')) and a is not None and p.get('geoPrecision')=='exact' and point(p.get('lng'),p.get('lat'))[0] is not None and km(a,b,p['lat'],p['lng'])<=.15]
-  if len(same)==1:p=same[0];status='matched'
-  elif candidates or byaddr[(si,ak)]:audit.append({'contentId':r['contentId'],'status':'manual-review','candidates':[p['id'] for p in candidates or byaddr[(si,ak)]]});continue
+  if not eligible(r):
+   entry={'contentId':r['contentId'],'status':'unsupported-category'}
+   if r['type']=='38':entry['shoppingState']=shopping_state(r)
+   audit.append(entry);continue
+  si=region(r['address']); name=norm(r['name']); ak=addrkey(r['address']);a,b=point(r['lng'],r['lat'])
+  p,evidence,candidates=matcher.match(r)
+  if p is not None:status='matched'
+  elif candidates:audit.append({'contentId':r['contentId'],'status':'manual-review','candidates':candidates});continue
   else:
    pid='p8'+r['contentId'].zfill(12);assert pid not in existing;existing.add(pid)
    ss=r['address'].split();gu=ss[1] if len(ss)>1 and ss[1].endswith(('시','군','구')) else None
    if gu and len(ss)>2 and ss[2].endswith('구'):gu+=' '+ss[2]
-   cat={'32':'숙소','39':'카페' if r['cat3']=='A05020900' else '식당'}.get(r['type'],'여행지');p={k:None for k in ('dong','dongKey','roadAddress','hours','closedDays','parking','indoor','outdoor','petSize','restrictions','petFee','description','homepage','licenseNo','lastChecked','petSizeSmall','petSizeMedium','petSizeLarge','floorAllowed','terrace','carrierRequired','vaccinationCheck','menu','imageRights','kakaoPlaceId','kakaoMapUrl')};p.update(id=pid,sido=si,sigungu=gu,address=r['address'],lat=a,lng=b,phone=r['phone'] or None,name=r['name'],category=cat,services=[cat],subType='관광공사 등록',verified=False,tags=['관광공사 등록'],registryCategories=[],source='한국관광공사 반려동물 동반여행 공공데이터',sourceUrl=SOURCE,geoSource='public-data' if a is not None else None,geoPrecision='exact' if a is not None else None,updatedAt=r['checkedOn']);places.append(p);byname[(si,name)].append(p);byaddr[(si,ak)].append(p);status='new'
+   cat={'32':'숙소','39':'카페' if r['cat3']=='A05020900' else '식당'}.get(r['type'],'여행지');p={k:None for k in ('dong','dongKey','roadAddress','hours','closedDays','parking','indoor','outdoor','petSize','restrictions','petFee','description','homepage','licenseNo','lastChecked','petSizeSmall','petSizeMedium','petSizeLarge','floorAllowed','terrace','carrierRequired','vaccinationCheck','menu','imageRights','kakaoPlaceId','kakaoMapUrl')};p.update(id=pid,sido=si,sigungu=gu,address=r['address'],lat=a,lng=b,phone=r['phone'] or None,name=r['name'],category=cat,services=[cat],subType='관광공사 등록',verified=False,tags=['관광공사 등록'],registryCategories=[],source='한국관광공사 반려동물 동반여행 공공데이터',sourceUrl=SOURCE,geoSource='public-data' if a is not None else None,geoPrecision='exact' if a is not None else None,updatedAt=r['checkedOn']);places.append(p);byname[(si,name)].append(p);byaddr[(si,ak)].append(p);matcher.add(p);status='new'
+  if r['type']=='38' and status=='new':p['subType']='쇼핑·복합몰';p['tags'].append('쇼핑·복합몰')
   # Do not override contradictory existing operator/public data. Preserve source wording separately.
   if not p.get('restrictions') and r['pet'].get('acmpyNeedMtr'):p['restrictions']=r['pet']['acmpyNeedMtr']
-  p['tourism']={'contentId':r['contentId'],'checkedOn':r['checkedOn'],'pet':r['pet'],'sourceUrl':SOURCE};p['tourPhoto']=next((ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')),None);p['tourPhotos']=[ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')];audit.append({'contentId':r['contentId'],'status':status,'placeId':p['id'],'licensedPhoto':bool(p['tourPhoto'])})
+  p['tourism']={'contentId':r['contentId'],'checkedOn':r['checkedOn'],'pet':r['pet'],'sourceUrl':SOURCE};p['tourPhoto']=next((ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')),None);p['tourPhotos']=[ph for ph in r['images'] if licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')];audit.append({'contentId':r['contentId'],'status':status,'placeId':p['id'],'licensedPhoto':bool(p['tourPhoto']),**evidence})
  return audit
 def report(src,places,audit):
  """Snapshot counts, not claims about image URL availability or physical visits."""
@@ -141,7 +148,7 @@ def report(src,places,audit):
  new_photos={i for i in new if byid[i].get('tourPhoto')}
  eligible=counts['matched']+counts['new']+counts['manual-review']
  # The denominator includes eligible records needing manual review, excludes unsupported categories.
- return {'snapshot_status':snap.get('status','unknown'),'last_attempt':snap.get('lastAttempt'),'last_complete_list':snap.get('lastCompleteList'),'batch_calls':snap.get('calls',0),'source_records':len(snap['records']),'eligible_records':eligible,'matched_records':counts['matched'],'matched_existing_places':len(existing_ids),'match_rate_pct':round(100*counts['matched']/eligible,2) if eligible else None,'new_records':counts['new'],'new_places':len(new),'manual_review_records':counts['manual-review'],'unsupported_records':counts['unsupported-category'],'matched_existing_with_licensed_photo':len(matched_photos),'new_with_licensed_photo':len(new_photos),'total_places_with_tour_photo':len(matched_photos|new_photos),'tour_photo_used_as_cover':sum(not byid[i].get('ownerPhoto') for i in matched_photos|new_photos),'detail_complete_records':sum(bool(r.get('detailDone')) for r in snap['records']),'image_complete_records':sum(bool(r.get('imageDone')) for r in snap['records'])}
+ return {**shopping_report(snap['records']),'exact_matched_records':sum(x.get('matchMethod')=='exact' for x in audit),'fuzzy_matched_records':sum(x.get('matchMethod')=='name-address-distance' for x in audit),'snapshot_status':snap.get('status','unknown'),'last_attempt':snap.get('lastAttempt'),'last_complete_list':snap.get('lastCompleteList'),'batch_calls':snap.get('calls',0),'source_records':len(snap['records']),'eligible_records':eligible,'matched_records':counts['matched'],'matched_existing_places':len(existing_ids),'match_rate_pct':round(100*counts['matched']/eligible,2) if eligible else None,'new_records':counts['new'],'new_places':len(new),'manual_review_records':counts['manual-review'],'unsupported_records':counts['unsupported-category'],'matched_existing_with_licensed_photo':len(matched_photos),'new_with_licensed_photo':len(new_photos),'total_places_with_tour_photo':len(matched_photos|new_photos),'tour_photo_used_as_cover':sum(not byid[i].get('ownerPhoto') for i in matched_photos|new_photos),'detail_complete_records':sum(bool(r.get('detailDone')) for r in snap['records']),'image_complete_records':sum(bool(r.get('imageDone')) for r in snap['records'])}
 
 if __name__=='__main__':
  src=pathlib.Path(__file__).parent/'source';key=os.getenv('TOURAPI_SERVICE_KEY','').strip()
