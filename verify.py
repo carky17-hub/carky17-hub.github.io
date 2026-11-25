@@ -111,7 +111,9 @@ for p in a:
 for o,n in merged.items():
  h=(S/'place'/o/'index.html').read_text(encoding='utf-8');assert f'content="0;url=/place/{n}/"' in h and f'href="{report["siteUrl"]}/place/{n}/"' in h
 assert (S/'sitemap.xml').stat().st_size<=52428800
-locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-noindex_paths-{'/contribute/','/naver-search/','/compare/'}
+locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('{*}url/{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-noindex_paths-{'/contribute/','/naver-search/','/compare/'}
+from images26 import verify_sitemap
+verify_sitemap(S,a,{'/','/regions/'} | {x['path'].rstrip('/')+'/' for x in seo} | {'/place/'+p['id']+'/' for p in a if p.get('tourPhoto') or p.get('tourPhotos')})
 redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6+len(alias_redirects)
 for old,new in redirects.items():
  assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();h=(S/old.strip('/')/'index.html').read_text();assert f'content="0;url={new}"' in h and 'href="'+report['siteUrl']+urllib.parse.quote(new,safe='/-._~')+'"' in h
