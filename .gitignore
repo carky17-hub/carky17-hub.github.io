@@ -54,3 +54,6 @@ worker/.dev.vars
 worker/.wrangler/
 
 site/naver-search/
+
+site/compare/
+internal/node_modules/

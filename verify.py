@@ -40,7 +40,7 @@ for sh in m['shards']:
 assert load(S/'data/merged-ids.json')==merged
 ld_re=re.compile(r'<script type="application/ld\+json">(.*?)</script>',re.S)
 row_re=re.compile(r'<li class="seo-row"><a href="/place/([pf]\d+)/"')
-expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/','/information-score/','/naver-search/'}
+expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/','/information-score/','/naver-search/','/compare/'}
 expected.update(extra_paths(src))
 regionpaths={x['path'].rstrip('/')+'/' for x in seo}
 meta_keys=['og:title','og:description','og:url','og:image','og:type','twitter:card','naver-site-verification','google-site-verification']
@@ -108,7 +108,7 @@ for p in a:
 for o,n in merged.items():
  h=(S/'place'/o/'index.html').read_text(encoding='utf-8');assert f'content="0;url=/place/{n}/"' in h and f'href="{report["siteUrl"]}/place/{n}/"' in h
 assert (S/'sitemap.xml').stat().st_size<=52428800
-locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-noindex_paths-{'/contribute/','/naver-search/'}
+locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-noindex_paths-{'/contribute/','/naver-search/','/compare/'}
 redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6+len(alias_redirects)
 for old,new in redirects.items():
  assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();h=(S/old.strip('/')/'index.html').read_text();assert f'content="0;url={new}"' in h and 'href="'+report['siteUrl']+urllib.parse.quote(new,safe='/-._~')+'"' in h
@@ -201,7 +201,7 @@ print('v1.9 compact index verified')
 geo=collections.defaultdict(list)
 for p in a:
  if exact_coord(p) and display_services(p):geo[lookup[p['id']]].append((p['lat'],p['lng']))
-assert m['version']==200
+assert m['version']==210
 for sh in m['shards']:
  pts=geo[sh['key']];expected_bounds=[min(x[0] for x in pts),min(x[1] for x in pts),max(x[0] for x in pts),max(x[1] for x in pts)] if pts else None
  assert sh['bounds']==expected_bounds,sh['key']
@@ -211,3 +211,16 @@ assert 'autoload=false&libraries=clusterer' in (S/'kakao-map.js').read_text()
 assert 'globalThis.EGKakaoKey='+json.dumps(os.environ.get('KAKAO_JS_KEY','').strip()) in (S/'core.js').read_text()
 assert '카카오 지도 사용 시' in privacy
 print('v2.0 shard bounds, lazy SDK, key injection and privacy verification PASS:',len(m['shards']),'shards;',sum(map(len,geo.values())),'exact visible places')
+
+# v2.1: routing schema and comparison/privacy regression guards.
+import base64
+route_ix=load(S/'data/search-routes.json')
+assert route_ix['version']==1 and route_ix['bits']==32768 and set(route_ix['shards'])=={sh['key'] for sh in m['shards']}
+assert all(len(base64.b64decode(v,validate=True))==4096 for v in route_ix['shards'].values())
+compare_page=(S/'compare/index.html').read_text();assert 'id="compareList"' in compare_page and 'noindex,follow' in compare_page and '동반 조건 비교함' in privacy
+for p in a:
+ h=(S/'place'/p['id']/'index.html').read_text();assert h.count('class="panel unknown-summary"')<=1
+ assert ('data-compare=' in h)==(score(p) is not None)
+ assert ('data-hero-rating' in h)==(score(p) is not None)
+assert 'eg-public-v210-core' in (S/'sw.js').read_text()
+print('v2.1 routing schema, comparison, attribution slot and cache version PASS')
