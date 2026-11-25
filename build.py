@@ -47,7 +47,7 @@ reviews,photos=content(SRC,SITE,IDS,MERGED)
 owner_photos=load_owner_photos(SRC,A,MERGED,SITE)
 own_ratings(A,reviews)
 (SITE/'bundle.css').write_text('\n'.join(line.strip() for f in (SITE/'style.css',SITE/'v13.css') for line in f.read_text(encoding='utf-8').splitlines() if line.strip()),encoding='utf-8')
-for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js','analytics.js','compare.js')),('discovery.js',('search.js','app.js','search-ui.js'))]:
+for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js','analytics.js')),('discovery.js',('search.js','app.js','search-ui.js'))]:
  (SITE/name).write_text(('globalThis.EGAnalyticsEndpoint='+json.dumps(ANALYTICS_ENDPOINT)+';\n' + 'globalThis.EGKakaoKey='+json.dumps(KAKAO_JS_KEY)+';\n' if name=='core.js' else 'globalThis.EGArt23='+json.dumps({'base':ART_BASE,'scenes':SCENES},ensure_ascii=False)+';\n')+'\n;\n'.join((SITE/asset).read_text(encoding='utf-8') for asset in assets),encoding='utf-8')
 ASSET_HASH=hashlib.sha256(b''.join(f.read_bytes() for f in sorted(SITE.glob('*.js'))+sorted(SITE.glob('*.css')))).hexdigest()[:16]
 E=lambda x:html.escape(str(x if x is not None else ''),quote=True)
@@ -63,8 +63,11 @@ def url(path):return BASE+urllib.parse.quote(path,safe='/-._~')
 def write(path,content):
  assert not '..' in pathlib.PurePosixPath(path).parts
  if path.endswith('.html'):
+  # v2.7 compare script only on pages with compare controls.
+  if ('data-compare=' in content or 'id="compareList"' in content) and '<script src="/compare.js' not in content:
+   content=content.replace('</body>','<script src="/compare.js" defer></script></body>',1)
   content=prioritize_photos(content)
-  content=re.sub(r'((?:src|href)="/(?:core|discovery|bundle)\.(?:js|css))"',lambda m:m[1]+'?v='+ASSET_HASH+'"',content)
+  content=re.sub(r'((?:src|href)="/(?:core|discovery|bundle|compare)\.(?:js|css))"',lambda m:m[1]+'?v='+ASSET_HASH+'"',content)
  f=SITE/path.lstrip('/');f.parent.mkdir(parents=True,exist_ok=True);f.write_text(content,encoding='utf-8')
 def dump(path,x):write(path,json.dumps(x,ensure_ascii=False,separators=(',',':')))
 def jsld(x):return '<script type="application/ld+json">'+json.dumps(x,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')+'</script>'
