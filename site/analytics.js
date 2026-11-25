@@ -5,3 +5,15 @@
  document.addEventListener('submit',e=>{if(e.target.id==='searchForm'&&document.getElementById('query')?.value.trim())EGTrack('search')});
  document.addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;if(a.dataset.egEvent==='photo'){EGTrack('photo');return}if(a.closest('#searchSuggestions,.eg-empty-links')){EGTrack('suggestion');return}const h=a.getAttribute('href')||'';if(h.startsWith('tel:'))EGTrack('phone');else if(a.closest('.map-links')||a.textContent.includes('길찾기')||a.textContent.includes('지도 검색'))EGTrack('directions');else if(h.startsWith('/funeral/consult')||h.startsWith('/funeral/contact')||h.includes('type=funeral')||a.textContent.includes('어디가개 상담 신청')||a.textContent.includes('장례 비용·절차 상담')||h.includes('type=pricing')||a.textContent.includes('상담 문의'))EGTrack('consult')});
 })();
+
+// v2.6 image health; only public tourism image hosts, no URL path, page, place or visitor identifier.
+;(()=>{'use strict';const endpoint=globalThis.EGAnalyticsEndpoint;
+function permitted(){try{return !!endpoint&&!window.EG_PREVIEW_DATA&&navigator.globalPrivacyControl!==true&&navigator.doNotTrack!=='1'&&window.doNotTrack!=='1'&&!location.pathname.startsWith('/naver-search/')&&localStorage.getItem('eg-stats-optout')!=='1'}catch{return false}}
+if(!permitted())return;
+const seen=new WeakMap(),pending=new Map();let timer=0;
+function hostOf(img){try{const u=new URL(img.currentSrc||img.getAttribute('src')||'',location.href);return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&(u.hostname==='visitkorea.or.kr'||u.hostname.endsWith('.visitkorea.or.kr'))&&u.hostname.length<=100?u.hostname:null}catch{return null}}
+function flush(){clearTimeout(timer);timer=0;if(!permitted()){pending.clear();return}if(!pending.size)return;const events=[...pending].map(([host,x])=>({host,...x}));pending.clear();fetch(endpoint+'/analytics-image',{method:'POST',body:JSON.stringify(events),headers:{'Content-Type':'text/plain'},credentials:'omit',referrerPolicy:'no-referrer',keepalive:true}).catch(()=>{})}
+function record(img,event){if(!permitted()||!img?.matches?.('img'))return;const host=hostOf(img);if(!host)return;const src=img.currentSrc||img.getAttribute('src');if(seen.get(img)===src)return;seen.set(img,src);if(!pending.has(host)&&pending.size>=12)flush();const x=pending.get(host)||{img_load:0,img_error:0};x[event]++;pending.set(host,x);if([...pending.values()].reduce((n,v)=>n+v.img_load+v.img_error,0)>=80)flush();else if(!timer)timer=setTimeout(flush,12000)}
+function scan(root){root.querySelectorAll?.('img[src]').forEach(img=>{if(img.complete&&img.getAttribute('src'))record(img,img.naturalWidth?'img_load':'img_error')})}
+document.addEventListener('load',e=>record(e.target,'img_load'),true);document.addEventListener('error',e=>record(e.target,'img_error'),true);scan(document);document.addEventListener('DOMContentLoaded',()=>scan(document),{once:true});window.addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush()});
+})();

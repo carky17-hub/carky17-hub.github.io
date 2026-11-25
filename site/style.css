@@ -171,3 +171,6 @@ body{color:#1b2333;-webkit-font-smoothing:antialiased;word-break:keep-all}
 
 /* v2.5 map thumbnail */
 .map-sheet-place{display:flex;align-items:flex-start;gap:10px}.map-sheet-info{flex:1;min-width:0;overflow-wrap:anywhere}.map-sheet-photo{flex:0 0 92px;min-width:0;margin:0}.map-sheet-photo img{display:block;width:92px;height:76px;object-fit:contain;background:#f1f4f0;border-radius:8px}.map-sheet-photo figcaption{font-size:10px;line-height:1.35;color:#475569;overflow-wrap:anywhere;margin-top:3px}.map-sheet-photo figcaption a{text-decoration:underline}.map-sheet-info .map-sheet-actions{flex-wrap:wrap}.map-sheet-info .map-sheet-actions a.btn{min-width:64px}
+
+/* v2.6 regional photos */
+.eg-region-photos .head{display:flex;align-items:center;justify-content:space-between;gap:8px}.eg-region-photos .head span{font-size:11px;color:#53635c}.eg-region-photos>p{font-size:13px;color:#53635c;margin:0 0 10px}.eg-region-photos .eg-curated-cards{grid-auto-columns:23%;}.eg-region-photos .eg-curated-cards:focus-visible{outline:2px solid #254d40;outline-offset:2px}@media(max-width:760px){.eg-region-photos .eg-curated-cards{grid-auto-columns:46%}}
