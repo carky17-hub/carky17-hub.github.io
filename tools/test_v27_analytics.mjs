@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';
+const source=fs.readFileSync(new URL('../worker/analytics-routes.js',import.meta.url),'utf8');
+const {analyticsRoute:route}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const store=new Map(),kv={async get(k){return store.has(k)?JSON.parse(store.get(k)):null},async put(k,v,o){assert.equal(o.expirationTtl,90*86400);store.set(k,v)}};
+const env={QUOTA_KV:kv,ADMIN_TOKEN:'test-secret',ANALYTICS_ENABLED:'true',ANALYTICS_DAILY_LIMIT:'5',ANALYTICS_DAILY_REQUEST_LIMIT:'4'};
+const origin='https://eodigagae.com',base='https://example.workers.dev';
+const req=(path,body,headers={},method=body===undefined?'GET':'POST')=>new Request(base+path,{method,headers:{...(body!==undefined?{'Content-Type':'text/plain',Origin:origin}:{}),...headers},body});
+assert.equal(await route(req('/google'),env),null);
+assert.equal((await route(req('/analytics-event','search',{Origin:'https://other.test'}),env)).status,403);
+assert.equal((await route(req('/analytics-event','search'),{...env,ANALYTICS_ENABLED:'false'})).status,503);
+assert.equal((await route(req('/analytics-event','secret-user-string'),env)).status,400);
+assert.equal((await route(req('/analytics-event','search',{DNT:'1'}),env)).status,204);assert.equal(store.size,0);
+assert.equal((await route(req('/analytics-event',undefined,{Origin:origin},'OPTIONS'),env)).status,204);
+const x=await route(req('/analytics-event','search'),env);assert.equal(x.status,204);assert.equal(x.headers.get('Access-Control-Allow-Origin'),origin);
+assert.equal((await route(req('/analytics-image',JSON.stringify([{host:'tong.visitkorea.or.kr',img_load:2,img_error:1,url:'https://secret'}])),env)).status,400);
+assert.equal((await route(req('/analytics-image',JSON.stringify([{host:'evil.test',img_load:1,img_error:0}])),env)).status,400);
+assert.equal((await route(req('/analytics-image',JSON.stringify([{host:'tong.visitkorea.or.kr',img_load:2,img_error:1}])),env)).status,204);
+assert.equal((await route(req('/analytics-event','save'),env)).status,204);
+assert.equal((await route(req('/analytics-event','phone'),env)).status,429);
+assert.equal((await route(req('/analytics-summary?token=no'),env)).status,401);
+assert.equal((await route(req('/analytics-summary?token=test-secret','x',{},'POST'),env)).status,405); // method rejected
+const report=await route(req('/analytics-summary?token=test-secret&days=7'),env);assert.equal(report.status,200);let r=await report.json();assert.equal(r.totals.events.search,1);assert.equal(r.totals.observations,5);assert.equal(r.totals.hosts['tong.visitkorea.or.kr'].error_rate,1/3);
+assert.equal((await route(req('/analytics-image-report',undefined,{Authorization:'Bearer test-secret'}),env)).status,200);
+assert.equal((await route(req('/analytics-summary?token=test-secret',undefined,{Origin:'https://evil.test'}),env)).status,403);
+assert.equal((await route(req('/analytics-event','x'.repeat(3000)),env)).status,413);
+assert.ok(!JSON.stringify([...store]).includes('test-secret'));console.log('v27 analytics tests PASS (Node Web API + mock KV; NOT workerd)');
