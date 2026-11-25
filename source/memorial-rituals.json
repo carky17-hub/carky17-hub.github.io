@@ -1,0 +1,44 @@
+[
+  {
+    "slug": "jeonghyesa-samsara",
+    "name": "정혜사 · 삼사라",
+    "region": "경기도 남양주시",
+    "address": "경기도 남양주시 조안면 다산로 478-10 (2026년 11월 예약 공지 기준; 방문 전 주소 재확인)",
+    "format": "반려동물 합동 49재 및 합동 천도재, 개별 의식 별도 문의. 사전 예약제.",
+    "status": "2026년 11월 예약 공지 확인. 다음 일정과 접수 가능 여부는 운영자 문의.",
+    "sourceUrl": "https://samsara.co.kr/bbs/board.php?bo_table=notice&wr_id=53",
+    "checkedOn": "2026-11-26"
+  },
+  {
+    "slug": "bongeunsa",
+    "name": "봉은사",
+    "region": "서울특별시 강남구",
+    "address": "서울특별시 강남구 봉은사로 531",
+    "format": "반려동물 위령 천도재 합동 행사. 2026년 11월 21일 법왕루에서 진행된 행사.",
+    "status": "지난 행사 종료 · 차기 일정 및 상시 접수 미확인",
+    "sourceUrl": "https://pf.kakao.com/_JTxeXxj",
+    "checkedOn": "2026-11-26"
+  },
+  {
+    "slug": "namsan-chungjeongsa",
+    "name": "남산 충정사",
+    "region": "서울특별시 중구",
+    "address": "서울특별시 중구 퇴계로34길 26 (조계종 공개 자료 기준)",
+    "format": "대한불교조계종 사찰. 2026년 6월 13~14일 반려동물 극락왕생 발원 합동 천도재 개최 보도 확인.",
+    "status": "지난 행사 종료 · 차기 일정 및 상시 접수 미확인",
+    "sourceUrl": "https://www.yna.co.kr/view/AKR20260619165100030",
+    "checkedOn": "2026-11-26",
+    "addressSourceUrl": "https://www.buddhism.or.kr/board/view.php?board_contents_idx=212484&scale=10&skey=&sval=&tn=news_01_03"
+  },
+  {
+    "slug": "yeongcheon-cheollyongjeongsa",
+    "name": "영천 천룡정사",
+    "region": "경상북도 영천시",
+    "address": "경상북도 영천시 청통면 신원리 (상세 주소 방문 전 확인)",
+    "format": "축생법당에서 반려동물 49재 및 천도 의식을 진행한 사례가 2024년 4월 3일 보도됨.",
+    "status": "보도 기준 운영 사례 확인 · 현재 접수 및 차기 일정 미확인",
+    "sourceUrl": "https://www.imaeil.com/page/view/2024040218291851414",
+    "checkedOn": "2026-11-26",
+    "addressSourceUrl": "https://jeonmae.co.kr/news/articleView.html?idxno=1139042"
+  }
+]

@@ -1,0 +1,5 @@
+[
+ {"id":"p02982","name":"24시 SNC 동물메디컬센터","address":"서울특별시 강남구 논현로 416","sourceUrl":"https://www.sncamc.co.kr/","checkedOn":"2026-11-26","evidence":"공식 홈페이지의 24시간 응급 대응 시스템 안내"},
+ {"id":"p02996","name":"24시센트럴동물메디컬센터","address":"서울특별시 성동구 고산자로 207","sourceUrl":"https://www.cenamc.kr/","checkedOn":"2026-11-26","evidence":"공식 홈페이지의 24시 응급케어 및 야간진료 안내"},
+ {"id":"p03000","name":"24시아프리카동물메디컬센터","address":"서울특별시 강서구 공항대로 335","sourceUrl":"https://www.aamc.co.kr/","checkedOn":"2026-11-26","evidence":"공식 홈페이지의 24시간 응급진료 및 야간진료 안내"}
+]
