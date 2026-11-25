@@ -5,7 +5,7 @@ load=lambda p:json.loads(p.read_text(encoding='utf-8'))
 from source_data import load_source
 from v13 import funeral_places,funeral_seo,match,extra_paths,is_funeral,neutral_key,reject_funeral_overlays
 # v1.3.2 neutral funeral verification
-a=load_source(src/'places-all.json'); a+=funeral_places(src,a); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
+a=load_source(src/'places-all.json'); a+=funeral_places(src,a); from tourapi import integrate as tour_integrate; tour_integrate(src,a); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
 from settings import ENABLE_KAKAO_LINKS,ENABLE_ADFIT,RELEASE_MODE,FORMS_LIVE,FORM_ENDPOINT
 from region_rules import dong_key,display_services,seo_pages,recount,indexable
 seo,alias_redirects=seo_pages(seo+funeral_seo(a))
@@ -23,6 +23,9 @@ from operations import annotate as ops_annotate,rank as ops_rank,compact_index
 from owner_photos import load_owner_photos
 owner_photos=load_owner_photos(src,a,merged)
 ops_annotate(a,src,review_ids,merged)
+from cards22 import annotate as own_ratings
+from v13 import content
+reviews,_=content(src,S,{p['id'] for p in a},merged); own_ratings(a,reviews)
 by={p['id']:p for p in a}
 assert len(by)==len(a)==m['total']; assert not by.keys()&merged.keys() and set(merged.values())<=by.keys()
 seen={}; actual=collections.Counter(); idx=collections.defaultdict(set)
@@ -40,7 +43,7 @@ for sh in m['shards']:
 assert load(S/'data/merged-ids.json')==merged
 ld_re=re.compile(r'<script type="application/ld\+json">(.*?)</script>',re.S)
 row_re=re.compile(r'<li class="seo-row"><a href="/place/([pf]\d+)/"')
-expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/','/information-score/','/naver-search/','/compare/'}
+expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/','/information-score/','/naver-search/','/compare/','/recommendation-policy/'}
 expected.update(extra_paths(src))
 regionpaths={x['path'].rstrip('/')+'/' for x in seo}
 meta_keys=['og:title','og:description','og:url','og:image','og:type','twitter:card','naver-site-verification','google-site-verification']
@@ -56,7 +59,7 @@ def valid_crumb(h,ld,path):
  assert [html.unescape(x) for x in re.findall(r'<a href="([^"]+)"',c)]==[urllib.parse.unquote(urllib.parse.urlsplit(i['item']).path) for i in items[:-1]]
 def exact_coord(p):return p.get('geoPrecision')=='exact' and all(type(p.get(k)) in (int,float) and math.isfinite(p[k]) and 0<abs(p[k])<=lim for k,lim in [('lat',90),('lng',180)])
 fields=('phone','hours','closedDays','parking','indoor','outdoor','petSize','petSizeSmall','petSizeMedium','petSizeLarge','petFee','restrictions','floorAllowed','terrace','carrierRequired','vaccinationCheck','menu','description','homepage')
-def tier(p):return 0 if '식약처 인증' in (p.get('tags') or []) else 1 if '등록업체' in (p.get('tags') or []) else 2 if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터')) else 3
+def tier(p):return 0 if '식약처 인증' in (p.get('tags') or []) else 1 if '등록업체' in (p.get('tags') or []) else 2 if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터','한국관광공사')) else 3
 def known(v):return v not in (None,'',[],{}) and (not isinstance(v,str) or bool(v.strip()) and v.strip() not in ('확인 필요','미확인','정보 없음','-'))
 def sortkey(p,sv):return (1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
 related_count=0
@@ -102,7 +105,7 @@ for p in a:
  if road:assert html.escape(road,quote=True) in h and ld['address']['streetAddress']==road;road_count+=1
  if kid:assert re.fullmatch(r'[0-9]+',kid) and f'href="https://place.map.kakao.com/{kid}"' in h;kakao_count+=1
  else:assert '카카오맵에서 보기' not in h
- tags=p.get('tags') or [];label='식약처 공식 인증' if '식약처 인증' in tags else '등록업체' if '등록업체' in tags else '공공데이터' if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터')) else '제보'
+ tags=p.get('tags') or [];label='식약처 공식 인증' if '식약처 인증' in tags else '등록업체' if '등록업체' in tags else '공공데이터' if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터','한국관광공사')) else '제보'
  assert ('geo' in ld)==exact and f'>{label}</span>' in h and 'source-badge' in h;assert ld['@type']=={'동물병원':'VeterinaryCare','식당':'Restaurant','카페':'CafeOrCoffeeShop','애견카페':'CafeOrCoffeeShop','숙소':'LodgingBusiness','여행지':'TouristAttraction'}.get(p['category'],'LocalBusiness') and ld['name']==p['name'];assert ({x['itemOffered']['name'] for x in ld['makesOffer']} if ld['@type']!='TouristAttraction' else {x['value'] for x in ld['additionalProperty']})==set(p['services']);valid_meta(h);valid_crumb(h,json.loads(ld_re.findall(h)[1]),path); assert 'type=correction' in h and 'type=closure' in h and 'type=owner' in h; assert [h.index('<h2>'+v+'</h2>') for v in ['동반 조건','운영시간·휴무','주차','연락처','출처·확인일']]==sorted(h.index('<h2>'+v+'</h2>') for v in ['동반 조건','운영시간·휴무','주차','연락처','출처·확인일']);geo['exact' if exact else 'approx' if p['geoPrecision'] in ('dong','sigungu') else 'none']+=1
 
 for o,n in merged.items():
@@ -168,7 +171,7 @@ from app_release import asset_links
 assert load(S/'.well-known/assetlinks.json')==asset_links()
 home=(S/'index.html').read_text(encoding='utf-8')
 boot=json.loads(re.search(r'<script type="application/json" id="homeBoot">(.*?)</script>',home,re.S)[1])
-seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not exact_coord(p),p['id']))
+seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,not (p.get('ownerPhoto') or p.get('tourPhoto')),'동물병원' in (p.get('services') or []),*ops_rank(p),tier(p),not exact_coord(p),p['id']))
 assert boot['total']==len(seoul) and boot['mapped']==sum(map(exact_coord,seoul))
 assert [p['id'] for p in boot['rows']]==[p['id'] for p in seoul[:12]]
 assert all(x['key']==lookup[x['id']] and all(x[f]==by[x['id']].get(f) for f in m['fields']) for x in boot['rows'])
@@ -201,7 +204,7 @@ print('v1.9 compact index verified')
 geo=collections.defaultdict(list)
 for p in a:
  if exact_coord(p) and display_services(p):geo[lookup[p['id']]].append((p['lat'],p['lng']))
-assert m['version']==210
+assert m['version']==220
 for sh in m['shards']:
  pts=geo[sh['key']];expected_bounds=[min(x[0] for x in pts),min(x[1] for x in pts),max(x[0] for x in pts),max(x[1] for x in pts)] if pts else None
  assert sh['bounds']==expected_bounds,sh['key']
@@ -222,5 +225,20 @@ for p in a:
  h=(S/'place'/p['id']/'index.html').read_text();assert h.count('class="panel unknown-summary"')<=1
  assert ('data-compare=' in h)==(score(p) is not None)
  assert ('data-hero-rating' in h)==(score(p) is not None)
-assert 'eg-public-v210-core' in (S/'sw.js').read_text()
+assert 'eg-public-v220-core' in (S/'sw.js').read_text()
 print('v2.1 routing schema, comparison, attribution slot and cache version PASS')
+# v2.2: own ratings, image license and curation integrity.
+from tourapi import licensed
+assert 'eg-place-card' in home and '/recommendation-policy/' in home and '사진 있는 추천 장소' in home
+assert re.search(r'/core\.js\?v=[0-9a-f]{16}',home) and re.search(r'/bundle\.css\?v=[0-9a-f]{16}',home) and re.search(r'/discovery\.js\?v=[0-9a-f]{16}',home)
+assert load(S/'release.json')['version']==re.search(r'/core\.js\?v=([0-9a-f]{16})',home)[1]
+assert 'skipWaiting()' in (S/'sw.js').read_text() and 'clients.claim()' in (S/'sw.js').read_text()
+for p in a:
+ assert (p['ownRating'] is None)==(p['ownReviewCount']==0)
+ for ph in p.get('tourPhotos',[]):assert licensed({'cpyrhtDivCd':'Type'+ph['license'],'url':ph['src']},'url')
+ if p.get('tourism'):
+  h=(S/'place'/p['id']/'index.html').read_text();assert '한국관광공사 동반 여행 정보' in h
+  if p.get('tourPhoto') and not p.get('ownerPhoto'):assert 'tour-photo-cover' in h
+ if p['ownReviewCount']:
+  h=(S/'place'/p['id']/'index.html').read_text();assert f'★ {p["ownRating"]:.1f}' in h
+print('v2.2 card layout, versioned assets, licensed images and first-party ratings PASS')
