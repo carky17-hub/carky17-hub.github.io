@@ -25,7 +25,7 @@ def dal():
   if a.fingerprint:assert a.fingerprint.upper() in fps
  else:print('DAL entries:',len(d),'(empty allowed pre-signing)')
 def offline():
- raw,_=get('/offline.html');s=raw.decode();assert '인터넷 연결' in s and 'rel="stylesheet"' not in s;assert 'eg-public-v280-core' in get('/sw.js')[0].decode()
+ raw,_=get('/offline.html');s=raw.decode();assert '인터넷 연결' in s and 'rel="stylesheet"' not in s;assert 'eg-public-v290-core' in get('/sw.js')[0].decode()
 def privacy():
  raw,ct=get('/privacy/');s=raw.decode();assert 'html' in ct and '개인정보처리방침' in s
  if '개인정보처리방침 (초안)' in s or '초안입니다' in s:raise ValueError('Privacy policy draft: finalize before release')
