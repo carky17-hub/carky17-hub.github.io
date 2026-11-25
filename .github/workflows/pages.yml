@@ -16,8 +16,38 @@ jobs:
     env:
       PYTHONUTF8: "1"
       SITE_URL: https://eodigagae.com
-      ALLOW_INDEXING: "false"
-      ENABLE_FORMS: "false"
+      ALLOW_INDEXING: ${{ vars.ALLOW_INDEXING || 'false' }}
+      ENABLE_FORMS: ${{ vars.ENABLE_FORMS || 'false' }}
+      PUBLIC_DATA_APPROVED: ${{ vars.PUBLIC_DATA_APPROVED || 'false' }}
+      POLICY_APPROVED: ${{ vars.POLICY_APPROVED || 'false' }}
+      ADS_POLICY_APPROVED: ${{ vars.ADS_POLICY_APPROVED || 'false' }}
+      ENABLE_ADFIT: ${{ vars.ENABLE_ADFIT || 'false' }}
+      ADFIT_MID: ${{ vars.ADFIT_MID }}
+      ADFIT_BOTTOM: ${{ vars.ADFIT_BOTTOM }}
+      FORM_ENDPOINT: ${{ vars.FORM_ENDPOINT }}
+      FORM_PROVIDER: ${{ vars.FORM_PROVIDER }}
+      FORM_PROVIDER_COUNTRY: ${{ vars.FORM_PROVIDER_COUNTRY }}
+      FORM_PROVIDER_CONTACT: ${{ vars.FORM_PROVIDER_CONTACT }}
+      FORM_PROVIDER_RETENTION: ${{ vars.FORM_PROVIDER_RETENTION }}
+      FORM_FILE_UPLOADS: ${{ vars.FORM_FILE_UPLOADS || 'false' }}
+      FORM_INTERNATIONAL_TRANSFER: ${{ vars.FORM_INTERNATIONAL_TRANSFER }}
+      KAKAO_CHANNEL_URL: ${{ vars.KAKAO_CHANNEL_URL }}
+      CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+      BUSINESS_NAME: ${{ vars.BUSINESS_NAME || '강마케팅' }}
+      BUSINESS_REPRESENTATIVE: ${{ vars.BUSINESS_REPRESENTATIVE }}
+      BUSINESS_NUMBER: ${{ vars.BUSINESS_NUMBER }}
+      BUSINESS_ADDRESS: ${{ vars.BUSINESS_ADDRESS }}
+      BUSINESS_PHONE: ${{ vars.BUSINESS_PHONE }}
+      BUSINESS_JURISDICTION: ${{ vars.BUSINESS_JURISDICTION }}
+      POLICY_EFFECTIVE_DATE: ${{ vars.POLICY_EFFECTIVE_DATE }}
+      POLICY_VERSION: ${{ vars.POLICY_VERSION || 'draft-2026-11-25' }}
+      ANDROID_PACKAGE_ID: ${{ vars.ANDROID_PACKAGE_ID || 'com.eodigagae.app' }}
+      ANDROID_SHA256_CERT_FINGERPRINTS: ${{ vars.ANDROID_SHA256_CERT_FINGERPRINTS }}
+      NAVER_SITE_VERIFICATION: ${{ vars.NAVER_SITE_VERIFICATION }}
+      GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+      SHEET_CORRECTIONS_CSV_URL: ${{ vars.SHEET_CORRECTIONS_CSV_URL }}
+      SHEET_ADS_CSV_URL: ${{ vars.SHEET_ADS_CSV_URL }}
+      SHEET_PREMIUM_CSV_URL: ${{ vars.SHEET_PREMIUM_CSV_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
