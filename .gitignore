@@ -47,3 +47,10 @@ site/.well-known/
 *.keystore
 *.aab
 *.apk
+
+site/information-score/
+site/reviews-config.js
+worker/.dev.vars
+worker/.wrangler/
+
+site/naver-search/

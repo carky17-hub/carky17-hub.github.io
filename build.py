@@ -14,22 +14,27 @@ if not ENABLE_KAKAO_LINKS:
  for p in A:p['kakaoPlaceId']=None;p['kakaoMapUrl']=None
 from admin import load_inputs,apply,schedules,premium_html,active
 from hospital import annotate,hospital_badges,telephone,maps
+from review_integrations import score,load_ids,config as review_config,detail as review_detail,SCORE_HTML,SEARCH_HTML,PRIVACY as REVIEW_PRIVACY,TERMS as REVIEW_TERMS
 from settings import ADS_POLICY_APPROVED, RELEASE_MODE
+from owner_photos import load_owner_photos,cover as photo_cover,gallery as owner_gallery
 from policies import identity,business_lines,business_html,adfit_notice
 admin_snapshot=load_inputs(); reject_funeral_overlays(admin_snapshot,A); correction_count=apply(A,admin_snapshot); annotate(A,SRC)
+for p in A:p["infoCompleteness"]=score(p)
 (ROOT/'build-admin-snapshot.json').write_text(json.dumps(admin_snapshot,ensure_ascii=False),encoding='utf-8')
 from region_rules import dong_key,display_services,seo_pages,recount,indexable,GROUPS
 SEO,ALIAS_REDIRECTS=seo_pages(load_source(SRC/'seo-pages.json')+funeral_seo(A)); assert len(set(p['id'] for p in A))==len(A)
 MERGED=load_source(SRC/'merged-ids.json'); IDS={p['id'] for p in A}
+GOOGLE_IDS=load_ids(SRC,IDS); REVIEW_CONFIG=review_config()
 assert not (IDS & MERGED.keys()) and set(MERGED.values()) <= IDS
 assert all(re.fullmatch(r'[pf]\d+',i) for i in IDS | MERGED.keys())
 # Clear generated pages and data on rebuild; preserve only hand-authored assets.
 for f in SITE.iterdir():
  if f.is_dir():shutil.rmtree(f)
- elif f.name not in {'app.js','map.js','style.css','og-brand.png','brand.svg','ui.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable.png','offline.html','adfit.js','hours.js','v13.css','contribute.js','nearby.js','v15.js','pwa.js','CNAME','hours.js'}:f.unlink()
+ elif f.name not in {'app.js','map.js','style.css','og-brand.png','brand.svg','ui.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable.png','offline.html','adfit.js','hours.js','v13.css','contribute.js','nearby.js','v15.js','pwa.js','external-reviews.js','naver-search.js','search.js','search-ui.js','search-worker.js','CNAME','hours.js'}:f.unlink()
 reviews,photos=content(SRC,SITE,IDS,MERGED)
+owner_photos=load_owner_photos(SRC,A,MERGED,SITE)
 (SITE/'bundle.css').write_text('\n'.join(line.strip() for f in (SITE/'style.css',SITE/'v13.css') for line in f.read_text(encoding='utf-8').splitlines() if line.strip()),encoding='utf-8')
-for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js')),('discovery.js',('app.js',))]:
+for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js')),('discovery.js',('search.js','app.js','search-ui.js'))]:
  (SITE/name).write_text('\n;\n'.join((SITE/asset).read_text(encoding='utf-8') for asset in assets),encoding='utf-8')
 E=lambda x:html.escape(str(x if x is not None else ''),quote=True)
 def fmt(x):
@@ -65,7 +70,7 @@ def badge(p):
 def placepath(p):return '/place/'+p['id']+'/'
 def regionpath(s):return s['path'].rstrip('/')+'/'
 def services(p):return ' · '.join(p['services'])
-def row(p):return f'<li class="seo-row"><a href="{E(placepath(p))}"><strong>{E(p["name"])}</strong></a> {badge(p)} <span class="tag">{E(services(p))}</span><div class="muted">{E(p.get("address") or " ".join(filter(None,[p.get("sido"),p.get("sigungu"),p.get("dong")])) or "주소 미확인")} · {status(p)}</div>'+('<div class="hospital-badges">'+hospital_badges(p)+'</div>' if p.get("hours24Data") or p.get("nightEmergencySource") else "")+(f'<a class="btn hospital-call" href="tel:{E(telephone(p.get("phone")))}">📞 병원에 전화</a>' if "동물병원" in p["services"] and telephone(p.get("phone")) else "")+'</li>'
+def row(p):return f'<li class="seo-row"><a href="{E(placepath(p))}"><strong>{E(p["name"])}</strong></a> {badge(p)} <span class="tag">{E(services(p))}</span><div class="muted">{E(p.get("address") or " ".join(filter(None,[p.get("sido"),p.get("sigungu"),p.get("dong")])) or "주소 미확인")} · {status(p)}</div>'+('<div class="hospital-badges">'+hospital_badges(p)+'</div>' if p.get("hours24Data") or p.get("nightEmergencySource") else "")+(f'<a class="btn hospital-call" href="tel:{E(telephone(p.get("phone")))}">📞 병원에 전화</a>' if "동물병원" in p["services"] and telephone(p.get("phone")) else "")+(f'<small>정보 충실도 {p["infoCompleteness"]}/100 · 리뷰는 상세에서 확인</small>' if p['infoCompleteness'] is not None else '')+'</li>'
 def listld(rows):return {'@context':'https://schema.org','@type':'ItemList','numberOfItems':len(rows),'itemListElement':[{'@type':'ListItem','position':i,'name':p['name'],'url':url(placepath(p))} for i,p in enumerate(rows,1)]}
 NAV='<header><div class="wrap nav"><a class="logo" href="/"><span class="mark"><img src="/brand.svg" width="36" height="36" alt=""></span>어디가개</a><nav class="links"><a href="/#explore">장소 찾기</a><a href="/regions/">지역별 장소</a><a href="/owner/pricing/">사장님 상품</a></nav><a class="btn primary nav-cta" href="/owner/">무료 입점</a></div></header>'
 FOOT='<footer><div class="wrap"><b>어디가개</b> · 공공 목록 등재는 모든 동반 조건을 보증하지 않습니다. 방문 전 업체에 확인해 주세요.<br><a href="/privacy/">개인정보처리방침</a> · <a href="/terms/">이용약관</a> · <a href="/sources/">데이터 출처</a> · <a href="/?launch=1#launch">출시 알림</a> · <a href="/owner/pricing/">광고 상품</a> · <button class="text-button" data-install>앱 설치 안내</button></div></footer>'
@@ -78,7 +83,7 @@ def page(path,title,desc,body,ld=None,noindex=False):write(path+'index.html','<!
 # shard generation; preserve source fields and categories
 regions=sorted(set(p.get('sido') or '지역 미확인' for p in A),key=lambda r:(r!='서울특별시',r=='지역 미확인',r)); cats=['식당','카페','숙소','여행지','놀이터','동물병원','미용','호텔·유치원','장례·추모']; groups=collections.defaultdict(list)
 for p in A:groups[p.get('sido') or '지역 미확인',('카페' if p['category']=='애견카페' else p['category'])].append(p)
-fields=['id','name','address','sigungu','dong','subType','lat','lng','verified','indoor','outdoor','parking','petSize','updatedAt','tags','geoPrecision','services','dongKey','category','petSizeLarge','lastChecked','petSizeSmall','petSizeMedium','source','roadAddress','geoSource','kakaoPlaceId','hours','closedDays','phone','hours24Data','nightEmergencySource','nightEmergencyCheckedOn','openStatusSource']; shards=[]; lookup=collections.defaultdict(dict)
+fields=['id','name','address','sigungu','dong','subType','lat','lng','verified','indoor','outdoor','parking','petSize','updatedAt','tags','geoPrecision','services','dongKey','category','petSizeLarge','lastChecked','petSizeSmall','petSizeMedium','source','roadAddress','geoSource','kakaoPlaceId','hours','closedDays','phone','hours24Data','nightEmergencySource','nightEmergencyCheckedOn','openStatusSource','infoCompleteness','ownerPhoto']; shards=[]; lookup=collections.defaultdict(dict)
 for (r,c),rows in sorted(groups.items()):
  key=f'r{regions.index(r):02d}-c{cats.index(c):02d}'; full=f'data/full/{key}.json'; ix=f'data/index/{key}.json';dump(full,rows);dump(ix,[[p.get(f) for f in fields] for p in rows]);shards.append(dict(key=key,sido=r,category=c,services=sorted({v for p in rows for v in p['services']}),count=len(rows),mapped=sum(map(coord,rows)),verified=sum(p['verified'] is True for p in rows),full=full,index=ix));
  for p in rows:lookup[p['id'][:3]][p['id']]=key
@@ -91,7 +96,7 @@ for p in A:
 dump('data/nearby-index.json',{'version':1,'groups':sorted(near_groups.items())})
 HOME_FIELDS=tuple(fields)
 HOME_KEYS={pid:key for g in lookup.values() for pid,key in g.items()}
-dump('data/manifest.json',dict(version=160,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
+dump('data/manifest.json',dict(version=180,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
 # static region filters; only clear administrative token prefixes, no fuzzy matching
 category={'grooming':'미용','hotel':'호텔·유치원','hospital':'동물병원','cafe':'카페','restaurant':'식당','travel':'여행지','stay':'숙소','playground':'놀이터','ossuary':'장례·추모','funeral':'장례·추모'}
 idx=collections.defaultdict(list)
@@ -102,12 +107,16 @@ INFO_FIELDS=('phone','hours','closedDays','parking','indoor','outdoor','petSize'
 def known(v):return v not in (None,'',[],{}) and (not isinstance(v,str) or bool(v.strip()) and v.strip() not in ('확인 필요','미확인','정보 없음','-'))
 def info_score(p):return sum(known(p.get(k)) for k in INFO_FIELDS)
 def rank(p,svc):return (1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not coord(p),-info_score(p),('카페' if p['category']=='애견카페' else p['category']) not in svc,p['name'],p['id'])
-sitemap=['/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/']; report=[]; pageinfo=[]; child=collections.defaultdict(list)
+sitemap=['/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/','/information-score/']; report=[]; pageinfo=[]; child=collections.defaultdict(list)
 for s in SEO:
  f=s['filter']; svc=f['service'] if isinstance(f['service'],list) else [f['service']]; rows=sorted({p['id']:p for c in svc for p in idx[c,f['sido'],f['sigungu'],dong_key(f['sido'],f['sigungu'],f['dongKey'])] if match(p,f)}.values(),key=lambda p:rank(p,svc));path=regionpath(s);n=len(rows);kw=s['mainKeyword'];title,desc,h1=recount(s,n);s=dict(s,h1=h1);info=(s,path,rows,title,desc);pageinfo.append(info)
  if indexable(s,n):sitemap.append(path)
  report.append({'path':path,'sourceCount':s['count'],'actualCount':n,'indexable':indexable(s,n), 'adjusted':n!=s['count']})
  if s['level']!='sido':child[(s['category'],s['sido'],None if s['level']=='sigungu' else s['sigungu'])].append((path,kw,n))
+# v1.8 lazy first-party search suggestions. Excludes hidden travel rows.
+search_places=[[p['id'],p['name'],p['sido'],p.get('sigungu'),dong_key(p['sido'],p.get('sigungu'),p.get('dongKey')) or p.get('dong'), ' · '.join(display_services(p))] for p in A if display_services(p)]
+search_regions=[[s['h1'],path,s['sido'],s['sigungu'],s['filter']['dongKey'],s['filter']['service'],len(rows)] for s,path,rows,_,_ in pageinfo if rows]
+dump('data/search-index.json',{'version':1,'places':search_places,'regions':search_regions})
 byregion={(s['category'],s['sido'],s['sigungu'],s['filter']['dongKey']):(path,s['mainKeyword'],len(rows)) for s,path,rows,_,_ in pageinfo}
 byarea=collections.defaultdict(list)
 for (cat,si,gu,dong),item in byregion.items():byarea[si,gu,dong].append((cat,item))
@@ -190,7 +199,7 @@ for p in A:
  if p.get('homepage') and isinstance(p['homepage'],str) and p['homepage'].startswith(('https://','http://')):schema['sameAs']=[p['homepage']]
  c=inv['카페' if p['category']=='애견카페' else p['category']];parent=next((reglookup[k] for k in [(c,p['sido'],p['sigungu'],dong_key(p['sido'],p['sigungu'],p['dongKey'])),(c,p['sido'],p['sigungu'],None),(c,p['sido'],None,None)] if k in reglookup),'/regions/')
  items=region_crumb(c,p['sido'],p['sigungu'],dong_key(p['sido'],p['sigungu'],p['dongKey']),True);crumbs,crumbld=crumb(items+[(name,path)])
- h=crumbs+f'<div class="detailhero"><div class="cover place-art" data-kind="{E(p["category"])}"><span class="art-label">{E(services(p))}</span></div><div class="detailintro">{badge(p)}<h1>{E(name)}</h1><p>{E(address or area or "주소 미확인")}</p><p>{E(services(p))} · {status(p)}</p>'+(f'<p><span class="open-pill" data-hours="{E(p.get("hours") or "")}" data-closed="{E(p.get("closedDays") or "")}"></span> <span class="muted">등록된 운영시간 기준 · 방문 전 전화 확인</span></p>' if p.get('hours') or p.get('closedDays') else '')+f'<p class="ext-links"><a class="btn" rel="nofollow noopener" target="_blank" href="https://map.naver.com/p/search/{urllib.parse.quote((p.get("sigungu") or "")+" "+p["name"])}">네이버에서 리뷰·사진 보기</a></p>'
+ h=crumbs+f'<div class="detailhero">{photo_cover(p,services(p))}<div class="detailintro">{badge(p)}<h1>{E(name)}</h1><p>{E(address or area or "주소 미확인")}</p><p>{E(services(p))} · {status(p)}</p>'+(f'<p><span class="open-pill" data-hours="{E(p.get("hours") or "")}" data-closed="{E(p.get("closedDays") or "")}"></span> <span class="muted">등록된 운영시간 기준 · 방문 전 전화 확인</span></p>' if p.get('hours') or p.get('closedDays') else '')+f'<p class="ext-links"><a class="btn" rel="nofollow noopener" target="_blank" href="https://map.naver.com/p/search/{urllib.parse.quote((p.get("sigungu") or "")+" "+p["name"])}">네이버 평점·사진 보기</a></p>'
  if '동물병원' in p['services']:
   h+='<div class="hospital-badges">'+hospital_badges(p)+'</div><p class="muted">진료 가능 여부와 접수 마감은 방문 전 전화로 확인하세요. 운영시간 표기는 실시간 진료 확인이 아닙니다.</p>'
   if telephone(p.get('phone')):h+=f'<a class="btn primary hospital-call" href="tel:{E(telephone(p.get("phone")))}">📞 병원에 전화</a>'
@@ -201,6 +210,7 @@ for p in A:
  if isinstance(kid,str) and re.fullmatch(r'[0-9]+',kid):h+=f'<a class="btn primary" href="https://place.map.kakao.com/{kid}" rel="noopener noreferrer" target="_blank">카카오맵에서 보기</a> '
  if coord(p):h+=f'<a class="btn" href="https://map.naver.com/p/search/{urllib.parse.quote(name+" "+(address or area),safe="")}" rel="noopener" target="_blank">지도 검색</a>'
  h+=f' <button class="btn detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button> <a class="btn" href="/owner/?type=correction&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">정보 수정 제안</a> <a class="btn" href="/owner/?type=closure&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">폐업 신고</a> <a class="btn primary" href="/owner/?type=owner&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">사장님 무료 입점 신청</a></div></div>'
+ h+=review_detail(p,GOOGLE_IDS,REVIEW_CONFIG)
  h+=maps(p)
  h+=f'<div hidden data-recent-place="{E(p["id"])}" data-recent-name="{E(name)}" data-recent-region="{E(area)}"></div>'
  if is_funeral(p):h+=funeral_actions(p,area)
@@ -213,6 +223,7 @@ for p in A:
   h+='<section class="panel"><h2>운영자 확인 정보</h2><ul>'+''.join(f'<li>{E(k)} · {E(v["checkedOn"])} · <a href="{E(v["source"])}" rel="noopener noreferrer" target="_blank">확인 근거</a></li>' for k,v in p['operatorCorrections'].items())+'</ul></section>'
  ph=p.get('phone') if isinstance(p.get('phone'),str) and re.search(r"\d{2,4}-\d{3,4}-\d{4}",p.get('phone') or '') else None
  h+='<div class="m-actions">'+(f'<a class="btn" href="tel:{E(re.sub(r"[^0-9]","",ph))}">📞 전화</a>' if ph else '')+f'<a class="btn" rel="nofollow noopener" target="_blank" href="https://map.naver.com/p/search/{urllib.parse.quote((p.get("sigungu") or "")+" "+p["name"])}">🗺️ 지도·리뷰</a><button class="btn primary detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button></div>'
+ h+=owner_gallery(owner_photos.get(p['id'],[]))
  h+=detail_content(p['id'],reviews,photos).replace('?place='+p['id']+'#','?place='+p['id']+'&amp;name='+E(urllib.parse.quote(name))+'#')
  page(path,title,desc,h,[schema,crumbld])
 # centralized form and policy pages; local download only
@@ -239,6 +250,12 @@ privacy+='\n## 장례 상담 문의\n- '+PRIVACY_TEXT+'\n'
 terms+='\n## 장례 상담 및 업체 연결\n- '+ROLE+'\n- '+DISCLOSURE+'\n- 업체 목록은 제휴 여부와 무관하게 지역·이름순으로 표시합니다. 장례 계약은 업체와 직접 체결하며 상담 신청은 계약·예약을 의미하지 않습니다. 개인정보는 업체 제공 전에 별도 동의를 받습니다.\n'
 privacy+='\n## 내 주변 찾기\n- 위치 접근에 동의한 경우 현재 위치는 브라우저 메모리에서만 거리 계산에 사용하며 서버, 신청서, URL 또는 저장소에 전송·저장하지 않습니다. 추정 시도 및 인접 시도의 공개 장소 데이터 파일을 요청하며, 지도를 선택하면 지도 제공자에게 표시 영역의 지도 타일이 요청될 수 있습니다. 위치 권한은 브라우저 설정에서 철회할 수 있습니다.\n'
 privacy+='\n## 최근 본 장소 및 저장 폴더\n- 최근 본 장소(최대 20곳), 저장한 장소와 폴더명은 이용자의 브라우저 localStorage에만 저장합니다. 서버에 전송하지 않으며 이용자가 삭제하거나 브라우저 저장소를 지우면 제거됩니다. 외부 지도 검색 링크에는 장소명과 주소만 전달합니다.\n'
+privacy+=REVIEW_PRIVACY;terms+=REVIEW_TERMS
+page('/information-score/','어디가개 정보 충실도 산식','업체 정보 충실도 산정 기준 및 한계',SCORE_HTML)
+# No ads, no commercial navigation, no core/ad scripts on the independent provider search page.
+search_head=head('네이버 검색결과 | 어디가개','네이버 지역·블로그·이미지 검색결과','/naver-search/',noindex=True).replace('<script src="/core.js" defer></script>','')
+write('/naver-search/index.html','<!doctype html><html lang="ko"><head>'+search_head+'</head><body><main class="wrap detail">'+SEARCH_HTML+'</main></body></html>')
+write('reviews-config.js','window.EGReviewConfig='+json.dumps(REVIEW_CONFIG,ensure_ascii=False).replace('<','\\u003c')+';')
 privacy=privacy.replace('[이메일·문자 발송 업체명]','발송 수단 확정 후 고지').replace('비밀번호 등 중요 정보 암호화 저장','접근 권한이 있는 운영자만 신청 내역 열람')
 for path,title,doc in [('/privacy/','개인정보처리방침',privacy),('/terms/','이용약관',terms),('/sources/','데이터 출처',sources)]:page(path,title+' | 어디가개',title+' 안내',md_html(identity(doc)+'\n'+business_lines()).replace('<h2>맞춤형 광고 안내</h2>','<h2 id="adfit">맞춤형 광고 안내</h2>'))
 # Legacy detail routes: static fallback plus deployment redirect table.
@@ -266,7 +283,7 @@ write('.nojekyll','')
 home_rows=sorted((p for p in A if p['sido']=='서울특별시' and display_services(p)),key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not coord(p),p['id']))
 home_boot={'rows':[dict({f:p.get(f) for f in HOME_FIELDS},sido=p['sido'],key=HOME_KEYS[p['id']]) for p in home_rows[:12]],'total':len(home_rows),'mapped':sum(map(coord,home_rows))}
 def home_card(p):
- return f'<article class="card"><a href="{E(placepath(p))}"><div class="cover place-art" data-kind="{E(p["category"])}"><span class="art-label">{E(p["category"])}</span></div><div class="cardbody">{badge(p)}<div class="name">{E(p["name"])}</div><div class="muted">{E(p["sido"]+" · "+(p.get("sigungu") or "")+" · "+services(p))}</div><div class="footline">{E(p.get("address") or "주소 미확인")}</div></div></a></article>'
+ return f'<article class="card"><a href="{E(placepath(p))}">{photo_cover(p,p["category"])}<div class="cardbody">{badge(p)}<div class="name">{E(p["name"])}</div><div class="muted">{E(p["sido"]+" · "+(p.get("sigungu") or "")+" · "+services(p))}</div><div class="footline">{E(p.get("address") or "주소 미확인")}</div>{("<small>정보 충실도 "+str(p["infoCompleteness"])+"/100 · 리뷰는 상세에서 확인</small>") if p["infoCompleteness"] is not None else ""}</div></a></article>'
 home=(SRC/'home-template.html').read_text().replace('<!--PLACE_COUNT-->',f'{len(A):,}');home=home.replace('<!--SEO_HEAD-->',f'<link rel="canonical" href="{E(url("/"))}">'+social('어디가개 | 반려동물 동반 장소 찾기','반려동물과 함께 갈 수 있는 식당, 카페, 숙소를 찾아보세요.','/')+jsld(listld(home_rows[:12])));home=home.replace('<!--STATIC_HOME-->',''.join(home_card(p) for p in home_rows[:12])).replace('<!--REGION_LINKS-->',''.join(f'<a href="{E(p)}">{E(t)} ({n:,})</a>' for p,t,n in roots if n));home=re.sub(r'<footer>.*?</footer>',lambda _:FOOT,home,flags=re.S);home=home.replace('</head>',('<meta name="robots" content="noindex,follow">' if PREVIEW else '')+'<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><link rel="apple-touch-icon" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><script src="/core.js" defer></script></head>');home=home.replace('/style.css','/bundle.css').replace('<script src="/hours.js" defer></script>','').replace('<script src="nearby.js" defer></script><script src="app.js" defer></script>','<script src="/discovery.js" defer></script>');home=home.replace('<footer>','<section class="wrap section"><h2>장례·추모 안내</h2><a class="btn" href="/funeral/">장례·추모</a> <a class="btn" href="/funeral/guide/">장례 가이드</a> <a class="btn" href="/memorial/rituals/">천도재·위령재</a></section><footer>',1);home=home.replace('<footer>',(launch_markup(True,POLICY_VERSION) if ENABLE_FORMS else '<aside id="launch" class="launch-banner wrap"><p>출시 알림 문의</p>'+contact_markup()+'</aside>')+'<footer>',1);home=home.replace('<!--HOME_BOOT-->', '<script type="application/json" id="homeBoot">'+json.dumps(home_boot,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')+'</script>');write('index.html',home)
 from app_release import asset_links
 write('.well-known/assetlinks.json',json.dumps(asset_links(),ensure_ascii=False,indent=2))

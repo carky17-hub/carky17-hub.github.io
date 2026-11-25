@@ -16,6 +16,11 @@ from admin import apply,schedules,active
 snapshot=load(R/'build-admin-snapshot.json'); reject_funeral_overlays(snapshot,a); assert apply(a,snapshot)==report['admin']['corrections']
 from hospital import annotate,telephone
 annotate(a,src)
+from review_integrations import score,load_ids,config as review_config,google_enabled
+for p in a:p["infoCompleteness"]=score(p)
+review_ids=load_ids(src,{p["id"] for p in a}); review_cfg=review_config()
+from owner_photos import load_owner_photos
+owner_photos=load_owner_photos(src,a,merged)
 by={p['id']:p for p in a}
 assert len(by)==len(a)==m['total']; assert not by.keys()&merged.keys() and set(merged.values())<=by.keys()
 seen={}; actual=collections.Counter(); idx=collections.defaultdict(set)
@@ -33,7 +38,7 @@ for sh in m['shards']:
 assert load(S/'data/merged-ids.json')==merged
 ld_re=re.compile(r'<script type="application/ld\+json">(.*?)</script>',re.S)
 row_re=re.compile(r'<li class="seo-row"><a href="/place/([pf]\d+)/"')
-expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/'}
+expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/','/information-score/','/naver-search/'}
 expected.update(extra_paths(src))
 regionpaths={x['path'].rstrip('/')+'/' for x in seo}
 meta_keys=['og:title','og:description','og:url','og:image','og:type','twitter:card','naver-site-verification','google-site-verification']
@@ -79,6 +84,12 @@ for path,rs in ads.items():
 geo=collections.Counter();kakao_count=0;road_count=0
 for p in a:
  i=p['id'];path='/place/'+i+'/';expected.add(path);h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');ld=json.loads(ld_re.search(h)[1]);exact=p['geoPrecision']=='exact' and all(type(p[k]) in (int,float) and math.isfinite(p[k]) and 0<abs(p[k])<=lim for k,lim in [('lat',90),('lng',180)])
+ if score(p) is not None:
+  assert f'정보 충실도 <b>{score(p)}/100</b>' in h
+  assert ('data-google-load' in h)==google_enabled(p,review_ids,review_cfg)
+  assert ('/naver-search/?' in h)==bool(review_cfg['naverEndpoint'])
+  assert ('class="cover owner-photo-cover"' in h)==bool(p.get('ownerPhoto'))
+ else:assert 'data-eg-reviews' not in h and '정보 충실도 <b>' not in h
  if '동물병원' in p['services']:
   assert ('24시간 운영 (운영시간 데이터상)' in h)==bool(p.get('hours24Data'))
   assert ('야간 응급진료 확인 · 공식 출처' in h)==bool(p.get('nightEmergencySource'))
@@ -95,7 +106,7 @@ for p in a:
 for o,n in merged.items():
  h=(S/'place'/o/'index.html').read_text(encoding='utf-8');assert f'content="0;url=/place/{n}/"' in h and f'href="{report["siteUrl"]}/place/{n}/"' in h
 assert (S/'sitemap.xml').stat().st_size<=52428800
-locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-noindex_paths-{'/contribute/'}
+locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-noindex_paths-{'/contribute/','/naver-search/'}
 redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6+len(alias_redirects)
 for old,new in redirects.items():
  assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();h=(S/old.strip('/')/'index.html').read_text();assert f'content="0;url={new}"' in h and 'href="'+report['siteUrl']+urllib.parse.quote(new,safe='/-._~')+'"' in h
@@ -106,6 +117,7 @@ for path in ['/privacy/','/terms/','/sources/','/owner/terms-ads/']:assert (S/pa
 for f in S.rglob('*.html'):
  if f.name!='offline.html':valid_meta(f.read_text(encoding='utf-8'))
 assert (S/'og-brand.png').is_file()
+ns=(S/'naver-search/index.html').read_text();assert 'name="robots" content="noindex,follow"' in ns and 'adfit.js' not in ns and '/owner/pricing/' not in ns and '/core.js' not in ns
 assert road_count==report['roadAddressCount'] and kakao_count==report['kakaoIdCount']
 assert not (S/'_redirects').exists() and not (S/'_headers').exists() and (S/'.nojekyll').is_file()
 home=(S/'index.html').read_text();privacy=(S/'privacy/index.html').read_text()
@@ -162,3 +174,20 @@ assert 'id="pwaInstall"' in home and home.count('data-cat=')==10
 assert indexable({'level':'dong'},3) and not indexable({'level':'dong'},2) and indexable({'level':'sigungu'},1)
 assert '오프라인에 저장하지 않습니다' in (S/'offline.html').read_text()
 print('v1.6 snapshot, region indexing and app association checks PASS')
+
+# v1.8 nationwide first-party search index must exactly reflect visible public listings and nonempty SEO pages.
+search=load(S/'data/search-index.json')
+assert search['version']==1
+assert search['places']==[[p['id'],p['name'],p['sido'],p.get('sigungu'),dong_key(p['sido'],p.get('sigungu'),p.get('dongKey')) or p.get('dong'),' · '.join(display_services(p))] for p in a if display_services(p)]
+# Build report keys differ across older releases; use the actual verified SEO membership index.
+expected_regions=[]
+for s in seo:
+ f=s['filter']; sv=f['service'] if isinstance(f['service'],list) else [f['service']]
+ ids=set().union(*(idx[c,f['sido'],f['sigungu'],dong_key(f['sido'],f['sigungu'],f['dongKey'])] for c in sv))
+ n=sum(match(by[i],f) for i in ids)
+ if n:expected_regions.append([recount(s,n)[2],s['path'].rstrip('/')+'/',s['sido'],s['sigungu'],f['dongKey'],f['service'],n])
+assert search['regions']==expected_regions
+assert all((S/r[1].lstrip('/')/'index.html').is_file() for r in search['regions'])
+assert all((S/'place'/r[0]/'index.html').is_file() for r in search['places'])
+assert 'role="combobox"' in home and 'id="searchSuggestions"' in home and '/data/search-index.json' not in home
+print('v1.8 search index verification PASS:',len(search['places']),'places;',len(search['regions']),'region suggestions')
