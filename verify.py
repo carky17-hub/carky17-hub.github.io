@@ -4,7 +4,9 @@ R=pathlib.Path(__file__).resolve().parent; S=R/'site'; src=R/'source'
 load=lambda p:json.loads(p.read_text(encoding='utf-8'))
 from source_data import load_source
 a=load_source(src/'places-all.json'); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
-from settings import ENABLE_KAKAO_LINKS,ENABLE_ADFIT,RELEASE_MODE
+from settings import ENABLE_KAKAO_LINKS,ENABLE_ADFIT,RELEASE_MODE,FORMS_LIVE,FORM_ENDPOINT
+from region_rules import dong_key,display_services,seo_pages,recount
+seo,alias_redirects=seo_pages(seo)
 assert all(p.get('geoSource') in (None,'public-data','소상공인시장진흥공단 상가(상권)정보 2026-09') and not p.get('kakaoPlaceId') and not p.get('kakaoMapUrl') and (not p.get('roadAddress') or p.get('geoSource')=='소상공인시장진흥공단 상가(상권)정보 2026-09') for p in a)
 if not ENABLE_KAKAO_LINKS:
  for p in a:p['kakaoPlaceId']=None;p['kakaoMapUrl']=None
@@ -17,9 +19,9 @@ for sh in m['shards']:
  full=load(S/sh['full']); rows=load(S/sh['index']); assert len(full)==len(rows)==sh['count']; assert set(sh['services'])=={v for p in full for v in p['services']}
  for p,arr in zip(full,rows):
   i=p['id'];assert i not in seen and p==by[i];seen[i]=p;assert arr==[p.get(f) for f in m['fields']]
-  for v in p['services']:
+  for v in display_services(p):
    actual[v]+=1
-   for sig,d in {(None,None),(p['sigungu'],None),(p['sigungu'],p['dongKey'])}:idx[v,p['sido'],sig,d].add(i)
+   for sig,d in {(None,None),(p['sigungu'],None),(p['sigungu'],dong_key(p['sido'],p['sigungu'],p['dongKey']))}:idx[v,p['sido'],sig,d].add(i)
 assert seen==by and actual==report['serviceCounts']
 lookup={k:v for f in (S/'data/lookup').glob('*.json') for k,v in load(f).items()}; assert set(lookup)==set(by)
 for sh in m['shards']:
@@ -47,10 +49,16 @@ def known(v):return v not in (None,'',[],{}) and (not isinstance(v,str) or bool(
 def sortkey(p,sv):return (tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
 related_count=0
 areas={}
+empty_paths=set()
+report_by_path={r['path']:r for r in report['regionCounts']}
+assert len(report_by_path)==len(seo)
 
 for item in seo:
- f=item['filter'];sv=f['service'] if isinstance(f['service'],list) else [f['service']];ids=set().union(*(idx[v,f['sido'],f['sigungu'],f['dongKey']] for v in sv));path=item['path'].rstrip('/')+'/';expected.add(path);areas[path]=ids
- h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');links=row_re.findall(h);ld=json.loads(ld_re.search(h)[1]); assert len(links)==len(ids)==item['count'] and set(links)==ids and ld['numberOfItems']==len(ids) and [x['url'].split('/')[-2] for x in ld['itemListElement']]==links;assert links==[p['id'] for p in sorted((by[i] for i in ids),key=lambda p:sortkey(p,sv))];assert '<link rel="canonical"' in h and '<meta name="description"' in h
+ f=item['filter'];sv=f['service'] if isinstance(f['service'],list) else [f['service']];ids=set().union(*(idx[v,f['sido'],f['sigungu'],dong_key(f['sido'],f['sigungu'],f['dongKey'])] for v in sv));path=item['path'].rstrip('/')+'/';expected.add(path);areas[path]=ids
+ h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');links=row_re.findall(h);ld=json.loads(ld_re.search(h)[1]); assert len(links)==len(ids) and set(links)==ids and ld['numberOfItems']==len(ids) and [x['url'].split('/')[-2] for x in ld['itemListElement']]==links;assert links==[p['id'] for p in sorted((by[i] for i in ids),key=lambda p:sortkey(p,sv))];assert '<link rel="canonical"' in h and '<meta name="description"' in h
+ assert report_by_path[path]['actualCount']==len(ids) and report_by_path[path]['sourceCount']==item['count']
+ if not ids:empty_paths.add(path)
+ title,desc,h1=recount(item,len(ids));assert '<title>'+html.escape(title,quote=True)+'</title>' in h and '<h1>'+html.escape(h1,quote=True)+'</h1>' in h and 'content="'+html.escape(desc,quote=True)+'"' in h
  valid_meta(h);lds=[json.loads(x) for x in ld_re.findall(h)];assert len(lds)==3;valid_crumb(h,lds[1],path);faq=lds[2];assert faq['@type']=='FAQPage' and 2<=len(faq['mainEntity'])<=3
  for q in faq['mainEntity']:
   assert html.escape(q['name'],quote=True) in h and html.escape(q['acceptedAnswer']['text'],quote=True) in h
@@ -74,27 +82,29 @@ for p in a:
 
 for o,n in merged.items():
  h=(S/'place'/o/'index.html').read_text(encoding='utf-8');assert f'content="0;url=/place/{n}/"' in h and f'href="{report["siteUrl"]}/place/{n}/"' in h
-locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)==len(set(locs)) and set(locs)==expected
-redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6
+locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)==len(set(locs)) and set(locs)==expected-empty_paths
+redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6+len(alias_redirects)
 for old,new in redirects.items():
- assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();assert f'content="0;url={new}"' in (S/old.strip('/')/'index.html').read_text()
+ assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();h=(S/old.strip('/')/'index.html').read_text();assert f'content="0;url={new}"' in h and 'href="'+report['siteUrl']+urllib.parse.quote(new,safe='/-._~')+'"' in h
 assert geo['exact']==report['mapped']; assert len([f for f in S.rglob('*.html') if f.name!='offline.html'])==len(expected)+len(redirects)
 form=(S/'owner/index.html').read_text()
-if not (RELEASE_MODE and not report['formsEnabled']):assert all(f'name="{n}"' in form for n in ['privacyConsent','petSizeLarge','indoor','parking','operating']);assert 'type="checkbox" required name="privacyConsent"' in form
+if FORMS_LIVE:assert all(f'name="{n}"' in form for n in ['privacyConsent','petSizeLarge','indoor','parking','operating']);assert 'type="checkbox" required name="privacyConsent"' in form
 for path in ['/privacy/','/terms/','/sources/','/owner/terms-ads/']:assert (S/path.strip('/')/'index.html').is_file()
 for f in S.rglob('*.html'):
  if f.name!='offline.html':valid_meta(f.read_text(encoding='utf-8'))
 assert (S/'og-brand.png').is_file()
 assert road_count==report['roadAddressCount'] and kakao_count==report['kakaoIdCount']
-rules=[x.split() for x in (S/'_redirects').read_text().splitlines()];assert len(rules)==2*len(redirects) and all(len(x)==3 and x[2]=='301!' for x in rules);assert {o:urllib.parse.unquote(n) for o,n,_ in rules if not o.endswith('index.html')}==redirects
-assert ('data-netlify="true"' in form)==report['formsEnabled'] and ('data-live="true"' in form)==report['formsEnabled']
-if not (RELEASE_MODE and not report['formsEnabled']):assert 'name="form-name" value="eodigagae-intake"' in form
-home=(S/'index.html').read_text()
-if RELEASE_MODE and not report['formsEnabled']:assert 'name="eodigagae-launch"' not in home
-else:assert 'name="eodigagae-launch"' in home and 'name="email" type="email" required' in home and ('data-netlify="true"' in home)==report['formsEnabled']
-if not (RELEASE_MODE and not report['formsEnabled']):
- for text in (home,form):
+assert not (S/'_redirects').exists() and not (S/'_headers').exists() and (S/'.nojekyll').is_file()
+home=(S/'index.html').read_text();privacy=(S/'privacy/index.html').read_text()
+assert report['formsEnabled']==FORMS_LIVE
+for text in (home,form):
+ assert 'data-netlify=' not in text and 'netlify-honeypot' not in text
+ if FORMS_LIVE:
+  assert 'action="'+html.escape(FORM_ENDPOINT,quote=True)+'"' in text and 'data-live="true"' in text
   assert all('name="'+k+'"' in text for k in ('acquisitionChannel','utm_source','utm_medium','utm_campaign','utm_content','utm_term'))
   assert all('value="'+k+'"' in text for k in ('blog','cafe','instagram','threads','store_qr','other'))
+ else:assert 'name="eodigagae-launch"' not in text and 'id="intake"' not in text
+assert 'Netlify' not in privacy
+assert all(redirects.get(k)==v for k,v in alias_redirects.items())
 assert ('Disallow: /\n' in (S/'robots.txt').read_text())==report['preview']
-print(json.dumps({'relatedLinks':related_count,'regionFaqPages':len(seo),'breadcrumbPages':len(a)+len(seo),'socialMetaPages':len(expected)+len(redirects),'uniquePlaces' :len(a),'regionPages':len(seo),'regionMismatch':0,'redirects':len(redirects),'sitemapUrls':len(locs),'htmlFiles':len(expected)+len(redirects),'coordinateCounts':geo,'serviceCounts':actual,'kakaoLinks':kakao_count,'roadAddresses':road_count,'netlifyRedirectRules':len(rules),'formsEnabled':report['formsEnabled'],'indexingAllowed':not report['preview'],'admin':report['admin'],'status':'PASS'},ensure_ascii=False,indent=2))
+print(json.dumps({'relatedLinks':related_count,'regionFaqPages':len(seo),'breadcrumbPages':len(a)+len(seo),'socialMetaPages':len(expected)+len(redirects),'uniquePlaces' :len(a),'regionPages':len(seo),'regionMismatch':0,'redirects':len(redirects),'sitemapUrls':len(locs),'htmlFiles':len(expected)+len(redirects),'coordinateCounts':geo,'serviceCounts':actual,'kakaoLinks':kakao_count,'roadAddresses':road_count,'aliasRedirects':len(alias_redirects),'emptyRegionPages':len(empty_paths),'adjustedRegionCounts':report['adjustedRegionCounts'],'travelExcluded':report['travelExcluded'],'formsEnabled':report['formsEnabled'],'indexingAllowed':not report['preview'],'admin':report['admin'],'status':'PASS'},ensure_ascii=False,indent=2))

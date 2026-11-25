@@ -30,7 +30,7 @@ def read_csv(text,kind):
 def load_inputs():
  local=os.getenv('ADMIN_CSV_DIR',''); urls={k:os.getenv('SHEET_'+k.upper()+'_CSV_URL','') for k in COLUMNS}
  require(not local or not any(urls.values()),'Do not mix local and remote sheet inputs')
- require(not local or not (os.getenv('NETLIFY')=='true' or os.getenv('RELEASE_MODE')=='true' or os.getenv('ALLOW_INDEXING')=='true'),'Local sample CSV not allowed in release build')
+ require(not local or not (os.getenv('GITHUB_ACTIONS')=='true' or os.getenv('RELEASE_MODE')=='true' or os.getenv('ALLOW_INDEXING')=='true'),'Local sample CSV not allowed in release build')
  require(not any(urls.values()) or all(urls.values()),'Set all three sheet URLs or none')
  if os.getenv('REQUIRE_ADMIN_SHEETS','false')=='true':require(all(urls.values()),'All three production sheet URLs required')
  rows={}
