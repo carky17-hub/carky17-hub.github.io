@@ -19,8 +19,10 @@ annotate(a,src)
 from review_integrations import score,load_ids,config as review_config,google_enabled
 for p in a:p["infoCompleteness"]=score(p)
 review_ids=load_ids(src,{p["id"] for p in a}); review_cfg=review_config()
+from operations import annotate as ops_annotate,rank as ops_rank,compact_index
 from owner_photos import load_owner_photos
 owner_photos=load_owner_photos(src,a,merged)
+ops_annotate(a,src,review_ids,merged)
 by={p['id']:p for p in a}
 assert len(by)==len(a)==m['total']; assert not by.keys()&merged.keys() and set(merged.values())<=by.keys()
 seen={}; actual=collections.Counter(); idx=collections.defaultdict(set)
@@ -56,7 +58,7 @@ def exact_coord(p):return p.get('geoPrecision')=='exact' and all(type(p.get(k)) 
 fields=('phone','hours','closedDays','parking','indoor','outdoor','petSize','petSizeSmall','petSizeMedium','petSizeLarge','petFee','restrictions','floorAllowed','terrace','carrierRequired','vaccinationCheck','menu','description','homepage')
 def tier(p):return 0 if '식약처 인증' in (p.get('tags') or []) else 1 if '등록업체' in (p.get('tags') or []) else 2 if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터')) else 3
 def known(v):return v not in (None,'',[],{}) and (not isinstance(v,str) or bool(v.strip()) and v.strip() not in ('확인 필요','미확인','정보 없음','-'))
-def sortkey(p,sv):return (1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
+def sortkey(p,sv):return (1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
 related_count=0
 areas={}
 empty_paths=set(); noindex_paths=set()
@@ -166,7 +168,7 @@ from app_release import asset_links
 assert load(S/'.well-known/assetlinks.json')==asset_links()
 home=(S/'index.html').read_text(encoding='utf-8')
 boot=json.loads(re.search(r'<script type="application/json" id="homeBoot">(.*?)</script>',home,re.S)[1])
-seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not exact_coord(p),p['id']))
+seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not exact_coord(p),p['id']))
 assert boot['total']==len(seoul) and boot['mapped']==sum(map(exact_coord,seoul))
 assert [p['id'] for p in boot['rows']]==[p['id'] for p in seoul[:12]]
 assert all(x['key']==lookup[x['id']] and all(x[f]==by[x['id']].get(f) for f in m['fields']) for x in boot['rows'])
@@ -191,3 +193,21 @@ assert all((S/r[1].lstrip('/')/'index.html').is_file() for r in search['regions'
 assert all((S/'place'/r[0]/'index.html').is_file() for r in search['places'])
 assert 'role="combobox"' in home and 'id="searchSuggestions"' in home and '/data/search-index.json' not in home
 print('v1.8 search index verification PASS:',len(search['places']),'places;',len(search['regions']),'region suggestions')
+
+assert load(S/'data/search-compact.json')==compact_index(search)
+print('v1.9 compact index verified')
+
+# v2.0: every visible exact point is covered by its shard's geographic bounds.
+geo=collections.defaultdict(list)
+for p in a:
+ if exact_coord(p) and display_services(p):geo[lookup[p['id']]].append((p['lat'],p['lng']))
+assert m['version']==200
+for sh in m['shards']:
+ pts=geo[sh['key']];expected_bounds=[min(x[0] for x in pts),min(x[1] for x in pts),max(x[0] for x in pts),max(x[1] for x in pts)] if pts else None
+ assert sh['bounds']==expected_bounds,sh['key']
+assert 'id="mapLocate"' in home and 'id="mapSearchArea"' in home and '<option value="distance">' in home
+assert 'dapi.kakao.com' not in home and 'dapi.kakao.com' not in (S/'core.js').read_text()
+assert 'autoload=false&libraries=clusterer' in (S/'kakao-map.js').read_text()
+assert 'globalThis.EGKakaoKey='+json.dumps(os.environ.get('KAKAO_JS_KEY','').strip()) in (S/'core.js').read_text()
+assert '카카오 지도 사용 시' in privacy
+print('v2.0 shard bounds, lazy SDK, key injection and privacy verification PASS:',len(m['shards']),'shards;',sum(map(len,geo.values())),'exact visible places')

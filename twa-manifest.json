@@ -17,15 +17,20 @@
   "iconUrl": "https://eodigagae.com/icon-512.png",
   "maskableIconUrl": "https://eodigagae.com/icon-maskable.png",
   "splashScreenFadeOutDuration": 300,
-  "signingKey": {"path": "./eodigagae-upload.jks", "alias": "eodigagae-upload"},
+  "signingKey": {
+    "path": "./eodigagae-upload.jks",
+    "alias": "eodigagae-upload"
+  },
   "appVersionCode": 1,
-  "appVersionName": "1.6.0",
+  "appVersionName": "1.9.0",
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://eodigagae.com/manifest.webmanifest",
   "fallbackType": "customtabs",
   "features": {},
-  "alphaDependencies": {"enabled": false},
+  "alphaDependencies": {
+    "enabled": false
+  },
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
