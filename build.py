@@ -18,7 +18,7 @@ from settings import ADS_POLICY_APPROVED, RELEASE_MODE
 from policies import identity,business_lines,business_html,adfit_notice
 admin_snapshot=load_inputs(); reject_funeral_overlays(admin_snapshot,A); correction_count=apply(A,admin_snapshot); annotate(A,SRC)
 (ROOT/'build-admin-snapshot.json').write_text(json.dumps(admin_snapshot,ensure_ascii=False),encoding='utf-8')
-from region_rules import dong_key,display_services,seo_pages,recount,GROUPS
+from region_rules import dong_key,display_services,seo_pages,recount,indexable,GROUPS
 SEO,ALIAS_REDIRECTS=seo_pages(load_source(SRC/'seo-pages.json')+funeral_seo(A)); assert len(set(p['id'] for p in A))==len(A)
 MERGED=load_source(SRC/'merged-ids.json'); IDS={p['id'] for p in A}
 assert not (IDS & MERGED.keys()) and set(MERGED.values()) <= IDS
@@ -26,10 +26,10 @@ assert all(re.fullmatch(r'[pf]\d+',i) for i in IDS | MERGED.keys())
 # Clear generated pages and data on rebuild; preserve only hand-authored assets.
 for f in SITE.iterdir():
  if f.is_dir():shutil.rmtree(f)
- elif f.name not in {'app.js','map.js','style.css','og-brand.png','brand.svg','ui.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable.png','offline.html','adfit.js','hours.js','v13.css','contribute.js','nearby.js','v15.js','CNAME','hours.js'}:f.unlink()
+ elif f.name not in {'app.js','map.js','style.css','og-brand.png','brand.svg','ui.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable.png','offline.html','adfit.js','hours.js','v13.css','contribute.js','nearby.js','v15.js','pwa.js','CNAME','hours.js'}:f.unlink()
 reviews,photos=content(SRC,SITE,IDS,MERGED)
 (SITE/'bundle.css').write_text('\n'.join(line.strip() for f in (SITE/'style.css',SITE/'v13.css') for line in f.read_text(encoding='utf-8').splitlines() if line.strip()),encoding='utf-8')
-for name,assets in [('core.js',('hours.js','v15.js','ui.js')),('discovery.js',('nearby.js','app.js'))]:
+for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js')),('discovery.js',('app.js',))]:
  (SITE/name).write_text('\n;\n'.join((SITE/asset).read_text(encoding='utf-8') for asset in assets),encoding='utf-8')
 E=lambda x:html.escape(str(x if x is not None else ''),quote=True)
 def fmt(x):
@@ -49,7 +49,7 @@ def jsld(x):return '<script type="application/ld+json">'+json.dumps(x,ensure_asc
 def social(title,desc,path):
  vals={'og:title':title,'og:description':desc,'og:url':url(path),'og:image':url('/og-brand.png'),'og:type':'website'}
  return ''.join(f'<meta property="{k}" content="{E(v)}">' for k,v in vals.items())+'<meta name="twitter:card" content="summary_large_image">'+f'<meta name="naver-site-verification" content="{E(NAVER_VERIFICATION)}"><meta name="google-site-verification" content="{E(GOOGLE_VERIFICATION)}">'
-def head(title,desc,path,ld=None,noindex=False):return f'<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{E(title)}</title><meta name="description" content="{E(desc)}"><link rel="canonical" href="{E(url(path))}">'+social(title,desc,path)+('<meta name="robots" content="noindex,follow">' if noindex or PREVIEW else '')+'<link rel="stylesheet" href="/bundle.css"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><script src="/core.js" defer></script>'+(''.join(jsld(x) for x in ld) if isinstance(ld,list) else jsld(ld) if ld else '')
+def head(title,desc,path,ld=None,noindex=False):return f'<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{E(title)}</title><meta name="description" content="{E(desc)}"><link rel="canonical" href="{E(url(path))}">'+social(title,desc,path)+('<meta name="robots" content="noindex,follow">' if noindex or PREVIEW else '')+'<link rel="stylesheet" href="/bundle.css"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><link rel="apple-touch-icon" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><script src="/core.js" defer></script>'+(''.join(jsld(x) for x in ld) if isinstance(ld,list) else jsld(ld) if ld else '')
 
 TIP='공공 목록에 등재됐다는 뜻이며 모든 조건을 보증하지 않음'
 BADGES=[('식약처 공식 인증','mint'),('등록업체','registry'),('공공데이터','public'),('제보','report')]
@@ -67,7 +67,7 @@ def regionpath(s):return s['path'].rstrip('/')+'/'
 def services(p):return ' · '.join(p['services'])
 def row(p):return f'<li class="seo-row"><a href="{E(placepath(p))}"><strong>{E(p["name"])}</strong></a> {badge(p)} <span class="tag">{E(services(p))}</span><div class="muted">{E(p.get("address") or " ".join(filter(None,[p.get("sido"),p.get("sigungu"),p.get("dong")])) or "주소 미확인")} · {status(p)}</div>'+('<div class="hospital-badges">'+hospital_badges(p)+'</div>' if p.get("hours24Data") or p.get("nightEmergencySource") else "")+(f'<a class="btn hospital-call" href="tel:{E(telephone(p.get("phone")))}">📞 병원에 전화</a>' if "동물병원" in p["services"] and telephone(p.get("phone")) else "")+'</li>'
 def listld(rows):return {'@context':'https://schema.org','@type':'ItemList','numberOfItems':len(rows),'itemListElement':[{'@type':'ListItem','position':i,'name':p['name'],'url':url(placepath(p))} for i,p in enumerate(rows,1)]}
-NAV='<header><div class="wrap nav"><a class="logo" href="/"><span class="mark"><img src="/brand.svg" alt=""></span>어디가개</a><nav class="links"><a href="/#explore">장소 찾기</a><a href="/regions/">지역별 장소</a><a href="/owner/pricing/">사장님 상품</a></nav><a class="btn primary nav-cta" href="/owner/">무료 입점</a></div></header>'
+NAV='<header><div class="wrap nav"><a class="logo" href="/"><span class="mark"><img src="/brand.svg" width="36" height="36" alt=""></span>어디가개</a><nav class="links"><a href="/#explore">장소 찾기</a><a href="/regions/">지역별 장소</a><a href="/owner/pricing/">사장님 상품</a></nav><a class="btn primary nav-cta" href="/owner/">무료 입점</a></div></header>'
 FOOT='<footer><div class="wrap"><b>어디가개</b> · 공공 목록 등재는 모든 동반 조건을 보증하지 않습니다. 방문 전 업체에 확인해 주세요.<br><a href="/privacy/">개인정보처리방침</a> · <a href="/terms/">이용약관</a> · <a href="/sources/">데이터 출처</a> · <a href="/?launch=1#launch">출시 알림</a> · <a href="/owner/pricing/">광고 상품</a> · <button class="text-button" data-install>앱 설치 안내</button></div></footer>'
 
 if not ENABLE_FORMS:FOOT=FOOT.replace(' · <a href="/?launch=1#launch">출시 알림</a>','')
@@ -89,7 +89,9 @@ near_groups=collections.defaultdict(list)
 for p in A:
  if coord(p) and p.get('sido') and display_services(p):near_groups[p['sido']].append([p['lat'],p['lng']])
 dump('data/nearby-index.json',{'version':1,'groups':sorted(near_groups.items())})
-dump('data/manifest.json',dict(version=150,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
+HOME_FIELDS=tuple(fields)
+HOME_KEYS={pid:key for g in lookup.values() for pid,key in g.items()}
+dump('data/manifest.json',dict(version=160,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
 # static region filters; only clear administrative token prefixes, no fuzzy matching
 category={'grooming':'미용','hotel':'호텔·유치원','hospital':'동물병원','cafe':'카페','restaurant':'식당','travel':'여행지','stay':'숙소','playground':'놀이터','ossuary':'장례·추모','funeral':'장례·추모'}
 idx=collections.defaultdict(list)
@@ -103,8 +105,8 @@ def rank(p,svc):return (1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not 
 sitemap=['/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/']; report=[]; pageinfo=[]; child=collections.defaultdict(list)
 for s in SEO:
  f=s['filter']; svc=f['service'] if isinstance(f['service'],list) else [f['service']]; rows=sorted({p['id']:p for c in svc for p in idx[c,f['sido'],f['sigungu'],dong_key(f['sido'],f['sigungu'],f['dongKey'])] if match(p,f)}.values(),key=lambda p:rank(p,svc));path=regionpath(s);n=len(rows);kw=s['mainKeyword'];title,desc,h1=recount(s,n);s=dict(s,h1=h1);info=(s,path,rows,title,desc);pageinfo.append(info)
- if n:sitemap.append(path)
- report.append({'path':path,'sourceCount':s['count'],'actualCount':n,'indexable':bool(n), 'adjusted':n!=s['count']})
+ if indexable(s,n):sitemap.append(path)
+ report.append({'path':path,'sourceCount':s['count'],'actualCount':n,'indexable':indexable(s,n), 'adjusted':n!=s['count']})
  if s['level']!='sido':child[(s['category'],s['sido'],None if s['level']=='sigungu' else s['sigungu'])].append((path,kw,n))
 byregion={(s['category'],s['sido'],s['sigungu'],s['filter']['dongKey']):(path,s['mainKeyword'],len(rows)) for s,path,rows,_,_ in pageinfo}
 byarea=collections.defaultdict(list)
@@ -147,6 +149,9 @@ for s,path,rows,title,desc in pageinfo:
  n=len(rows);kw=s['mainKeyword'];cat=s['category'];si=s['sido'];gu=s['sigungu'];dong=s['filter']['dongKey'];children=child.get((cat,si,gu),[]) if s['level']!='dong' else []
  crumbs,crumbld=crumb(region_crumb(cat,si,gu,dong)); summary,faqhtml,faqld=summary_faq(s,rows)
  h=crumbs+f'<p><a href="{E(searchlink(s))}">{"장례·추모 전체 검색·지도 보기" if s["filter"].get("subTypes") else "이 지역 검색·지도 보기"}</a></p><h1>{E(s["h1"])}</h1>'+summary
+ if s['level']=='dong' and not indexable(s,n):
+  parent=byregion.get((cat,si,gu,None)) or byregion.get((cat,si,None,None))
+  if parent:h+=f'<p class="notice">수록 업체가 3곳 미만인 지역입니다. <a href="{E(parent[0])}">상위 지역 전체 목록 보기</a></p>'
  if cat in ("funeral","ossuary"):h+=funeral_cta(region=" ".join(filter(None,[si,gu,dong])))+fee_notice()+'<p>지역·업체명 순 · 제휴 여부와 무관한 공공 목록입니다.</p>'
  else:h+=recommend(path,rows,admin_ads.get(path,[]))
  h+= '<section class="panel"><h2>장소 목록</h2>'+('<ul class="seo-list">'+''.join(row(p)+(ad_slot('mid',ADFIT_MID) if cat not in ('funeral','ossuary') and i==max(1,len(rows)//2)-1 else '') for i,p in enumerate(rows))+'</ul>' if rows else '<p>현재 필터에 일치하는 업체가 없습니다. 지역 정보 검증 중입니다.</p>')+'</section>'
@@ -159,7 +164,7 @@ for s,path,rows,title,desc in pageinfo:
  h+='<section class="panel related-regions" aria-label="관련 지역 및 서비스">'
  for label,items in [('상위 지역',parents),('같은 시군구의 다른 동',siblings),('같은 지역의 다른 서비스',others)]:
   if items:h+='<h2>'+label+'</h2>'+links(sorted(items,key=lambda v:(v[1],v[0])))
- h+='</section>';page(path,title,desc,h,[listld(rows),crumbld,faqld],not n)
+ h+='</section>';page(path,title,desc,h,[listld(rows),crumbld,faqld],not indexable(s,n))
 
 roots=[(path,s['mainKeyword'],len(rows)) for s,path,rows,_,_ in pageinfo if s['level']=='sido'];page('/regions/','지역별 반려동물 장소 | 어디가개','전국 지역별 식당, 카페, 숙소 및 반려생활 장소 목록.','<h1>지역별 장소 찾기</h1><p>지역과 카테고리를 선택해 장소를 찾아보세요.</p>'+links(roots),{'@context':'https://schema.org','@type':'ItemList','itemListElement':[{'@type':'ListItem','position':i,'name':t,'url':url(p)} for i,(p,t,n) in enumerate([r for r in roots if r[2]],1)]})
 publish_pages(SRC,page,roots,A)
@@ -257,6 +262,14 @@ for path,dest in ALIAS_REDIRECTS.items():
 write('.nojekyll','')
 (ROOT/'deploy'/'redirects.json').write_text(json.dumps(redirects,ensure_ascii=False,indent=2))
 
-home=(SRC/'home-template.html').read_text().replace('<!--PLACE_COUNT-->',f'{len(A):,}');home=home.replace('<!--SEO_HEAD-->',f'<link rel="canonical" href="{E(url("/"))}">'+social('어디가개 | 반려동물 동반 장소 찾기','반려동물과 함께 갈 수 있는 식당, 카페, 숙소를 찾아보세요.','/')+jsld(listld([p for p in A if p['sido']=='서울특별시' and display_services(p)][:24])));home=home.replace('<!--STATIC_HOME-->','<ul class="seo-list">'+''.join(row(p) for p in [p for p in A if p['sido']=='서울특별시' and display_services(p)][:24])+'</ul>').replace('<!--REGION_LINKS-->',''.join(f'<a href="{E(p)}">{E(t)} ({n:,})</a>' for p,t,n in roots if n));home=re.sub(r'<footer>.*?</footer>',lambda _:FOOT,home,flags=re.S);home=home.replace('</head>',('<meta name="robots" content="noindex,follow">' if PREVIEW else '')+'<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><script src="/core.js" defer></script></head>');home=home.replace('/style.css','/bundle.css').replace('<script src="/hours.js" defer></script>','').replace('<script src="nearby.js" defer></script><script src="app.js" defer></script>','<script src="/discovery.js" defer></script>');home=home.replace('<footer>','<section class="wrap section"><h2>장례·추모 안내</h2><a class="btn" href="/funeral/">장례·추모</a> <a class="btn" href="/funeral/guide/">장례 가이드</a> <a class="btn" href="/memorial/rituals/">천도재·위령재</a></section><footer>',1);home=home.replace('<footer>',(launch_markup(True,POLICY_VERSION) if ENABLE_FORMS else '<aside id="launch" class="launch-banner wrap"><p>출시 알림 문의</p>'+contact_markup()+'</aside>')+'<footer>',1);write('index.html',home)
+# v1.6 first-screen snapshot; actual full search loads only on interaction.
+home_rows=sorted((p for p in A if p['sido']=='서울특별시' and display_services(p)),key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not coord(p),p['id']))
+home_boot={'rows':[dict({f:p.get(f) for f in HOME_FIELDS},sido=p['sido'],key=HOME_KEYS[p['id']]) for p in home_rows[:12]],'total':len(home_rows),'mapped':sum(map(coord,home_rows))}
+def home_card(p):
+ return f'<article class="card"><a href="{E(placepath(p))}"><div class="cover place-art" data-kind="{E(p["category"])}"><span class="art-label">{E(p["category"])}</span></div><div class="cardbody">{badge(p)}<div class="name">{E(p["name"])}</div><div class="muted">{E(p["sido"]+" · "+(p.get("sigungu") or "")+" · "+services(p))}</div><div class="footline">{E(p.get("address") or "주소 미확인")}</div></div></a></article>'
+home=(SRC/'home-template.html').read_text().replace('<!--PLACE_COUNT-->',f'{len(A):,}');home=home.replace('<!--SEO_HEAD-->',f'<link rel="canonical" href="{E(url("/"))}">'+social('어디가개 | 반려동물 동반 장소 찾기','반려동물과 함께 갈 수 있는 식당, 카페, 숙소를 찾아보세요.','/')+jsld(listld(home_rows[:12])));home=home.replace('<!--STATIC_HOME-->',''.join(home_card(p) for p in home_rows[:12])).replace('<!--REGION_LINKS-->',''.join(f'<a href="{E(p)}">{E(t)} ({n:,})</a>' for p,t,n in roots if n));home=re.sub(r'<footer>.*?</footer>',lambda _:FOOT,home,flags=re.S);home=home.replace('</head>',('<meta name="robots" content="noindex,follow">' if PREVIEW else '')+'<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#F26B1D"><link rel="apple-touch-icon" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><script src="/core.js" defer></script></head>');home=home.replace('/style.css','/bundle.css').replace('<script src="/hours.js" defer></script>','').replace('<script src="nearby.js" defer></script><script src="app.js" defer></script>','<script src="/discovery.js" defer></script>');home=home.replace('<footer>','<section class="wrap section"><h2>장례·추모 안내</h2><a class="btn" href="/funeral/">장례·추모</a> <a class="btn" href="/funeral/guide/">장례 가이드</a> <a class="btn" href="/memorial/rituals/">천도재·위령재</a></section><footer>',1);home=home.replace('<footer>',(launch_markup(True,POLICY_VERSION) if ENABLE_FORMS else '<aside id="launch" class="launch-banner wrap"><p>출시 알림 문의</p>'+contact_markup()+'</aside>')+'<footer>',1);home=home.replace('<!--HOME_BOOT-->', '<script type="application/json" id="homeBoot">'+json.dumps(home_boot,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')+'</script>');write('index.html',home)
+from app_release import asset_links
+write('.well-known/assetlinks.json',json.dumps(asset_links(),ensure_ascii=False,indent=2))
+write('.nojekyll','')
 assert len(sitemap)<=50000, 'Sitemap URL limit exceeded; split sitemap before deploying.'
-write('sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join('<url><loc>'+xml_escape(url(p))+'</loc></url>\n' for p in sitemap)+'</urlset>');assert (SITE/'sitemap.xml').stat().st_size<=52428800;write('robots.txt',('User-agent: *\nDisallow: /\n' if PREVIEW else 'User-agent: *\nAllow: /\nDisallow: /data/\n')+'Sitemap: '+url('/sitemap.xml')+'\n');dump('data/build-report.json',{'total':len(A),'redirects':len(redirects),'badgeCounts':dict(collections.Counter(BADGES[tier(p)][0] for p in A)),'serviceCounts':dict(collections.Counter(v for p in A for v in display_services(p))), 'travelExcluded':sum('여행지' in p['services'] and '여행지' not in display_services(p) for p in A), 'aliasRedirects':ALIAS_REDIRECTS,'mapped':sum(map(coord,A)),'approx':sum(map(approx,A)),'verified':sum(p['verified'] is True for p in A),'seoPages':len(SEO),'empty':sum(not r['indexable'] for r in report),'mismatch':0,'adjustedRegionCounts':sum(r['adjusted'] for r in report),'sitemapUrls':len(sitemap),'shards':len(shards),'regionCounts':report,'siteUrl':BASE,'preview':PREVIEW,'formsEnabled':ENABLE_FORMS,'admin':{'mode':admin_snapshot['mode'],'asOf':admin_snapshot['as_of'],'corrections':correction_count,'adBookings':sum(map(len,admin_ads.values())),'activeAds':sum(active(r,admin_snapshot['as_of']) for rows in admin_ads.values() for r in rows),'premiumBookings':sum(map(len,admin_premium.values())),'activePremium':sum(active(r,admin_snapshot['as_of']) for rows in admin_premium.values() for r in rows)},'roadAddressCount':sum(bool(p.get('roadAddress')) for p in A),'kakaoIdCount':sum(bool(p.get('kakaoPlaceId')) for p in A)});print('build complete',len(A),len(SEO),len(sitemap),'empty regions',sum(not r['indexable'] for r in report),'recounted regions',sum(r['sourceCount']!=r['actualCount'] for r in report))
+write('sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join('<url><loc>'+xml_escape(url(p))+'</loc></url>\n' for p in sitemap)+'</urlset>');assert (SITE/'sitemap.xml').stat().st_size<=52428800;write('robots.txt',('User-agent: *\nDisallow: /\n' if PREVIEW else 'User-agent: *\nAllow: /\nDisallow: /data/\n')+'Sitemap: '+url('/sitemap.xml')+'\n');dump('data/build-report.json',{'total':len(A),'redirects':len(redirects),'badgeCounts':dict(collections.Counter(BADGES[tier(p)][0] for p in A)),'serviceCounts':dict(collections.Counter(v for p in A for v in display_services(p))), 'travelExcluded':sum('여행지' in p['services'] and '여행지' not in display_services(p) for p in A), 'aliasRedirects':ALIAS_REDIRECTS,'mapped':sum(map(coord,A)),'approx':sum(map(approx,A)),'verified':sum(p['verified'] is True for p in A),'seoPages':len(SEO),'empty':sum(r['actualCount']==0 for r in report),'noindexRegionCount':sum(not r['indexable'] for r in report),'mismatch':0,'adjustedRegionCounts':sum(r['adjusted'] for r in report),'sitemapUrls':len(sitemap),'shards':len(shards),'regionCounts':report,'siteUrl':BASE,'preview':PREVIEW,'formsEnabled':ENABLE_FORMS,'admin':{'mode':admin_snapshot['mode'],'asOf':admin_snapshot['as_of'],'corrections':correction_count,'adBookings':sum(map(len,admin_ads.values())),'activeAds':sum(active(r,admin_snapshot['as_of']) for rows in admin_ads.values() for r in rows),'premiumBookings':sum(map(len,admin_premium.values())),'activePremium':sum(active(r,admin_snapshot['as_of']) for rows in admin_premium.values() for r in rows)},'roadAddressCount':sum(bool(p.get('roadAddress')) for p in A),'kakaoIdCount':sum(bool(p.get('kakaoPlaceId')) for p in A)});print('build complete',len(A),len(SEO),len(sitemap),'empty regions',sum(not r['indexable'] for r in report),'recounted regions',sum(r['sourceCount']!=r['actualCount'] for r in report))

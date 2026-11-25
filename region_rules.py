@@ -16,5 +16,13 @@ def seo_pages(source):
   else:pages.append(s)
  return pages,redirects
 
+def indexable(s,n):
+ return n>0 and (s['level']!='dong' or n>=3)
+
 def recount(s,n):
+ if s['level']=='dong':
+  label={'cafe':'애견동반카페','restaurant':'애견동반식당','grooming':'애견미용','hospital':'동물병원','hotel':'애견호텔','stay':'애견동반숙소','travel':'애견동반 가볼만한곳','playground':'애견놀이터','funeral':'반려동물 장례식장','ossuary':'반려동물 납골당'}.get(s['category'])
+  if label:
+   kw=f"{s['filter']['dongKey']} {label}"
+   return f'{kw} {n}곳 | 어디가개',f'{s["sigungu"]} {kw} 목록 {n}곳. 주소, 연락처 및 확인된 이용 조건을 비교하고 방문 전 업체에 확인하세요.',f'{kw} {n}곳'
  return tuple(re.sub(r'(?<!\d)'+re.escape(str(s['count']))+r'곳',f'{n}곳',s[k]) for k in ('title','metaDescription','h1'))

@@ -7,7 +7,7 @@ from v13 import funeral_places,funeral_seo,match,extra_paths,is_funeral,neutral_
 # v1.3.2 neutral funeral verification
 a=load_source(src/'places-all.json'); a+=funeral_places(src,a); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
 from settings import ENABLE_KAKAO_LINKS,ENABLE_ADFIT,RELEASE_MODE,FORMS_LIVE,FORM_ENDPOINT
-from region_rules import dong_key,display_services,seo_pages,recount
+from region_rules import dong_key,display_services,seo_pages,recount,indexable
 seo,alias_redirects=seo_pages(seo+funeral_seo(a))
 assert all(p.get('geoSource') in (None,'public-data','소상공인시장진흥공단 상가(상권)정보 2026-09') and not p.get('kakaoPlaceId') and not p.get('kakaoMapUrl') and (not p.get('roadAddress') or p.get('geoSource')=='소상공인시장진흥공단 상가(상권)정보 2026-09') for p in a)
 if not ENABLE_KAKAO_LINKS:
@@ -54,7 +54,7 @@ def known(v):return v not in (None,'',[],{}) and (not isinstance(v,str) or bool(
 def sortkey(p,sv):return (1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
 related_count=0
 areas={}
-empty_paths=set()
+empty_paths=set(); noindex_paths=set()
 report_by_path={r['path']:r for r in report['regionCounts']}
 assert len(report_by_path)==len(seo)
 
@@ -63,6 +63,9 @@ for item in seo:
  h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');links=row_re.findall(h);ld=json.loads(ld_re.search(h)[1]); assert len(links)==len(ids) and set(links)==ids and ld['numberOfItems']==len(ids) and [x['url'].split('/')[-2] for x in ld['itemListElement']]==links;assert links==[p['id'] for p in sorted((by[i] for i in ids),key=lambda p:sortkey(p,sv))];assert '<link rel="canonical"' in h and '<meta name="description"' in h
  assert report_by_path[path]['actualCount']==len(ids) and report_by_path[path]['sourceCount']==item['count']
  if not ids:empty_paths.add(path)
+ if not indexable(item,len(ids)):
+  noindex_paths.add(path);assert 'name="robots" content="noindex,follow"' in h
+ assert report_by_path[path]['indexable']==indexable(item,len(ids))
  title,desc,h1=recount(item,len(ids));assert '<title>'+html.escape(title,quote=True)+'</title>' in h and '<h1>'+html.escape(h1,quote=True)+'</h1>' in h and 'content="'+html.escape(desc,quote=True)+'"' in h
  valid_meta(h);lds=[json.loads(x) for x in ld_re.findall(h)];assert len(lds)==3;valid_crumb(h,lds[1],path);faq=lds[2];assert faq['@type']=='FAQPage' and 2<=len(faq['mainEntity'])<=3
  for q in faq['mainEntity']:
@@ -92,7 +95,7 @@ for p in a:
 for o,n in merged.items():
  h=(S/'place'/o/'index.html').read_text(encoding='utf-8');assert f'content="0;url=/place/{n}/"' in h and f'href="{report["siteUrl"]}/place/{n}/"' in h
 assert (S/'sitemap.xml').stat().st_size<=52428800
-locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-empty_paths-{'/contribute/'}
+locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)<=50000 and len(locs)==len(set(locs)) and set(locs)==expected-noindex_paths-{'/contribute/'}
 redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6+len(alias_redirects)
 for old,new in redirects.items():
  assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();h=(S/old.strip('/')/'index.html').read_text();assert f'content="0;url={new}"' in h and 'href="'+report['siteUrl']+urllib.parse.quote(new,safe='/-._~')+'"' in h
@@ -145,3 +148,17 @@ def verify_funeral_output(root):
 
 
 verify_funeral_output(R)
+
+# v1.6 first-screen data and app association checks
+from app_release import asset_links
+assert load(S/'.well-known/assetlinks.json')==asset_links()
+home=(S/'index.html').read_text(encoding='utf-8')
+boot=json.loads(re.search(r'<script type="application/json" id="homeBoot">(.*?)</script>',home,re.S)[1])
+seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,tier(p),not exact_coord(p),p['id']))
+assert boot['total']==len(seoul) and boot['mapped']==sum(map(exact_coord,seoul))
+assert [p['id'] for p in boot['rows']]==[p['id'] for p in seoul[:12]]
+assert all(x['key']==lookup[x['id']] and all(x[f]==by[x['id']].get(f) for f in m['fields']) for x in boot['rows'])
+assert 'id="pwaInstall"' in home and home.count('data-cat=')==10
+assert indexable({'level':'dong'},3) and not indexable({'level':'dong'},2) and indexable({'level':'sigungu'},1)
+assert '오프라인에 저장하지 않습니다' in (S/'offline.html').read_text()
+print('v1.6 snapshot, region indexing and app association checks PASS')
