@@ -1,0 +1,6 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const handlers={},calls=[],offline=new Response('offline shell');
+class RequestMock{constructor(url,init){this.url=url;this.cache=init.cache;}}
+const ctx={URL,Response,Request:RequestMock,location:{origin:'https://eodigagae.com'},self:{addEventListener:(n,f)=>handlers[n]=f,skipWaiting:async()=>{},clients:{claim:async()=>{}}},caches:{open:async name=>({add:async req=>calls.push([name,req.url,req.cache])}),match:async (key,opt)=>{assert.equal(key,'/offline.html');assert.equal(opt.cacheName,'eg-public-v290-core');return offline.clone();}}};
+vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../site/sw.js'),'utf8'),ctx);
+(async()=>{let p;handlers.install({waitUntil:x=>p=x});await p;assert.deepEqual(calls,[['eg-public-v290-core','/offline.html','reload']]);ctx.fetch=async()=>{throw Error('offline')};handlers.fetch({request:{method:'GET',url:'https://eodigagae.com/',mode:'navigate'},respondWith:x=>p=x});assert.equal(await (await p).text(),'offline shell');console.log('SW install reload + own cache fallback PASS (Node VM)')})().catch(e=>{console.error(e);process.exit(1)});
