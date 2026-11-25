@@ -1,1 +1,68 @@
-{"id":"/","name":"어디가개 · 반려동물 동반 장소","short_name":"어디가개","lang":"ko","start_url":"/","scope":"/","display":"standalone","background_color":"#F4F5F8","theme_color":"#F26B1D","icons":[{"src":"/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"/icon-maskable.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}
+{
+  "id": "/",
+  "name": "어디가개 · 반려동물 동반 장소",
+  "short_name": "어디가개",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F5F8",
+  "theme_color": "#F26B1D",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "description": "반려동물 동반 장소·동물병원·장례·추모 정보를 찾는 서비스",
+  "orientation": "any",
+  "shortcuts": [
+    {
+      "name": "장소 찾기",
+      "short_name": "장소",
+      "url": "/#explore",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "저장한 장소",
+      "short_name": "저장",
+      "url": "/#saved",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "장례·추모 안내",
+      "short_name": "장례·추모",
+      "url": "/funeral/",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
