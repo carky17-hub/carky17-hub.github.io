@@ -149,7 +149,15 @@ for s,path,rows,title,desc in pageinfo:
 roots=[(path,s['mainKeyword'],len(rows)) for s,path,rows,_,_ in pageinfo if s['level']=='sido'];page('/regions/','지역별 반려동물 장소 | 어디가개','전국 지역별 식당, 카페, 숙소 및 반려생활 장소 목록.','<h1>지역별 장소 찾기</h1><p>지역과 카테고리를 선택해 장소를 찾아보세요.</p>'+links(roots),{'@context':'https://schema.org','@type':'ItemList','itemListElement':[{'@type':'ListItem','position':i,'name':t,'url':url(p)} for i,(p,t,n) in enumerate([r for r in roots if r[2]],1)]})
 # detail and feedback form
 facts=[('반려동물 크기·무게 (원본 정보)','petSize'),('소형견','petSizeSmall'),('중형견','petSizeMedium'),('대형견','petSizeLarge'),('실내 동반','indoor'),('실외 동반','outdoor'),('추가 요금','petFee'),('바닥에 내려놓기','floorAllowed'),('테라스','terrace'),('이동장 필요','carrierRequired'),('접종 확인 필요','vaccinationCheck'),('동반 제한','restrictions'),('무게 제한','weightLimit'),('메뉴 및 가격','menu'),('이미지 사용 권한','imageRights')]
-def block(title,p,fields):return '<section class="panel"><h2>'+E(title)+'</h2><div class="detailgrid">'+''.join(f'<div class="fact"><b>{E(k)}</b><span>{E(("영업 중" if p[v] else "폐업 신고 확인") if v=="operating" and isinstance(p.get(v),bool) else fmt(p.get(v)))}</span></div>' for k,v in fields)+'</div></section>'
+def _fv(p,v):
+ x=p.get(v)
+ if v=="operating" and isinstance(x,bool):return E("영업 중" if x else "폐업 신고 확인")
+ if v=="phone" and isinstance(x,str) and re.search(r"\d{2,4}-\d{3,4}-\d{4}",x):return f'<a href="tel:{E(re.sub(r"[^0-9]","",x))}">{E(x)}</a>'
+ if v in("homepage","sourceUrl") and isinstance(x,str) and x.startswith(("https://","http://")):return f'<a href="{E(x)}" rel="nofollow noopener" target="_blank">{E(x)}</a>'
+ return E(fmt(x))
+def block(title,p,fields):
+ kn=[(k,v) for k,v in fields if known(p.get(v)) or (v=="operating" and isinstance(p.get(v),bool))];un=[k for k,v in fields if (k,v) not in kn]
+ return '<section class="panel"><h2>'+E(title)+'</h2>'+('<dl class="kv">'+''.join(f'<div><dt>{E(k)}</dt><dd>{_fv(p,v)}</dd></div>' for k,v in kn)+'</dl>' if kn else '')+(f'<p class="unknown-list">확인 필요 · {E(" · ".join(un))}</p>' if un else '')+'</section>'
 reglookup={(s['category'],s['sido'],s['sigungu'],s['filter']['dongKey']):path for s,path,rows,_,_ in pageinfo if rows};inv={v:k for k,v in category.items()}
 for p in A:
  path=placepath(p);sitemap.append(path);name=p['name'];address=p.get('roadAddress') or p.get('address');area=' '.join(filter(None,[p['sido'],p['sigungu'],p['dong']]));title=f'{name} · {services(p)} | 어디가개';desc=f'{name}의 {area or "지역 미확인"} {services(p)} 정보. 주소, 영업시간, 확인된 반려동물 이용 조건을 살펴보세요.';schema={'@context':'https://schema.org','@type':{'동물병원':'VeterinaryCare','식당':'Restaurant','카페':'CafeOrCoffeeShop','애견카페':'CafeOrCoffeeShop','숙소':'LodgingBusiness','여행지':'TouristAttraction'}.get(p['category'],'LocalBusiness'),'name':name,'url':url(path),'description':desc,'makesOffer':[{'@type':'Offer','itemOffered':{'@type':'Service','name':v}} for v in p['services']]}
@@ -174,6 +182,8 @@ for p in A:
  h+=block('운영시간·휴무',p,[('영업시간','hours'),('휴무일','closedDays'),('영업 여부','operating')])+block('주차',p,[('주차','parking')])+block('연락처',p,[('전화','phone'),('홈페이지','homepage')])+block('출처·확인일',p,[('정보 출처','source'),('위치 정보 출처','geoSource'),('영업 확인 출처','openStatusSource'),('출처 URL','sourceUrl'),('마지막 확인일','lastChecked'),('데이터 갱신일','updatedAt'),('인허가 번호','licenseNo')])+block('기타 정보',p,[('업종 상세','subType'),('소개','description'),('등록 업종','registryCategories')])
  if p.get('operatorCorrections'):
   h+='<section class="panel"><h2>운영자 확인 정보</h2><ul>'+''.join(f'<li>{E(k)} · {E(v["checkedOn"])} · <a href="{E(v["source"])}" rel="noopener noreferrer" target="_blank">확인 근거</a></li>' for k,v in p['operatorCorrections'].items())+'</ul></section>'
+ ph=p.get('phone') if isinstance(p.get('phone'),str) and re.search(r"\d{2,4}-\d{3,4}-\d{4}",p.get('phone') or '') else None
+ h+='<div class="m-actions">'+(f'<a class="btn" href="tel:{E(re.sub(r"[^0-9]","",ph))}">📞 전화</a>' if ph else '')+f'<a class="btn" rel="nofollow noopener" target="_blank" href="https://map.naver.com/p/search/{urllib.parse.quote((p.get("sigungu") or "")+" "+p["name"])}">🗺️ 지도·리뷰</a><button class="btn primary detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button></div>'
  page(path,title,desc,h,[schema,crumbld])
 # centralized form and policy pages; local download only
 from forms import form, intake_js, md_html

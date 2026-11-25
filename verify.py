@@ -72,7 +72,7 @@ geo=collections.Counter();kakao_count=0;road_count=0
 for p in a:
  i=p['id'];path='/place/'+i+'/';expected.add(path);h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');ld=json.loads(ld_re.search(h)[1]);exact=p['geoPrecision']=='exact' and all(type(p[k]) in (int,float) and math.isfinite(p[k]) and 0<abs(p[k])<=lim for k,lim in [('lat',90),('lng',180)])
  assert h.count('class="panel premium-detail"')==len(premium.get(i,[]))
- assert ('영업 여부 확인 필요' in h)==('동물병원' in p['services'] and not p.get('openStatusSource'));assert '<b>위치 정보 출처</b>' in h
+ assert ('영업 여부 확인 필요' in h)==('동물병원' in p['services'] and not p.get('openStatusSource'));assert '위치 정보 출처' in h
  kid=p.get('kakaoPlaceId');road=p.get('roadAddress');assert '<b>도로명주소</b>' in h
  if road:assert html.escape(road,quote=True) in h and ld['address']['streetAddress']==road;road_count+=1
  if kid:assert re.fullmatch(r'[0-9]+',kid) and f'href="https://place.map.kakao.com/{kid}"' in h;kakao_count+=1
