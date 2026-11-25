@@ -227,7 +227,7 @@ for p in a:
  h=(S/'place'/p['id']/'index.html').read_text();assert h.count('class="panel unknown-summary"')<=1
  assert ('data-compare=' in h)==(score(p) is not None)
  assert ('data-hero-rating' in h)==(score(p) is not None)
-assert 'eg-public-v280-core' in (S/'sw.js').read_text()
+assert 'eg-public-v290-core' in (S/'sw.js').read_text()
 print('v2.1 routing schema, comparison, attribution slot and cache version PASS')
 # v2.2: own ratings, image license and curation integrity.
 from tourapi import licensed
