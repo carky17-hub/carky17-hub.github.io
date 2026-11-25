@@ -1,0 +1,5 @@
+[build]
+  command = "python3 -X utf8 build.py && python3 -X utf8 verify.py"
+  publish = "site"
+[build.environment]
+  PYTHONUTF8 = "1"

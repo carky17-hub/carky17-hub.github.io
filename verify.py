@@ -1,0 +1,100 @@
+"""Full data, static page and redirect validation; standard library only."""
+import json,re,collections,pathlib,xml.etree.ElementTree as ET,urllib.parse,math,html,os
+R=pathlib.Path(__file__).resolve().parent; S=R/'site'; src=R/'source'
+load=lambda p:json.loads(p.read_text(encoding='utf-8'))
+from source_data import load_source
+a=load_source(src/'places-all.json'); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
+from settings import ENABLE_KAKAO_LINKS,ENABLE_ADFIT,RELEASE_MODE
+assert all(p.get('geoSource') in (None,'public-data','소상공인시장진흥공단 상가(상권)정보 2026-09') and not p.get('kakaoPlaceId') and not p.get('kakaoMapUrl') and (not p.get('roadAddress') or p.get('geoSource')=='소상공인시장진흥공단 상가(상권)정보 2026-09') for p in a)
+if not ENABLE_KAKAO_LINKS:
+ for p in a:p['kakaoPlaceId']=None;p['kakaoMapUrl']=None
+from admin import apply,schedules,active
+snapshot=load(R/'build-admin-snapshot.json'); assert apply(a,snapshot)==report['admin']['corrections']
+by={p['id']:p for p in a}
+assert len(by)==len(a)==m['total']; assert not by.keys()&merged.keys() and set(merged.values())<=by.keys()
+seen={}; actual=collections.Counter(); idx=collections.defaultdict(set)
+for sh in m['shards']:
+ full=load(S/sh['full']); rows=load(S/sh['index']); assert len(full)==len(rows)==sh['count']; assert set(sh['services'])=={v for p in full for v in p['services']}
+ for p,arr in zip(full,rows):
+  i=p['id'];assert i not in seen and p==by[i];seen[i]=p;assert arr==[p.get(f) for f in m['fields']]
+  for v in p['services']:
+   actual[v]+=1
+   for sig,d in {(None,None),(p['sigungu'],None),(p['sigungu'],p['dongKey'])}:idx[v,p['sido'],sig,d].add(i)
+assert seen==by and actual==report['serviceCounts']
+lookup={k:v for f in (S/'data/lookup').glob('*.json') for k,v in load(f).items()}; assert set(lookup)==set(by)
+for sh in m['shards']:
+ assert all(lookup[p['id']]==sh['key'] for p in load(S/sh['full']))
+assert load(S/'data/merged-ids.json')==merged
+ld_re=re.compile(r'<script type="application/ld\+json">(.*?)</script>',re.S)
+row_re=re.compile(r'<li class="seo-row"><a href="/place/(p\d+)/"')
+expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/'}
+regionpaths={x['path'].rstrip('/')+'/' for x in seo}
+meta_keys=['og:title','og:description','og:url','og:image','og:type','twitter:card','naver-site-verification','google-site-verification']
+def valid_meta(h):
+ assert all(re.search(r'<meta (?:name|property)="'+k+r'" content="[^"]*">',h) for k in meta_keys)
+ assert re.search(r'<meta property="og:url" content="([^"]+)">',h)[1]==re.search(r'<link rel="canonical" href="([^"]+)">',h)[1]
+def valid_crumb(h,ld,path):
+ assert ld['@type']=='BreadcrumbList' and ld['itemListElement'][0]['name']=='홈'
+ items=ld['itemListElement'];assert [i['position'] for i in items]==list(range(1,len(items)+1));assert urllib.parse.unquote(urllib.parse.urlsplit(items[-1]['item']).path)==path
+ c=re.search(r'<nav class="breadcrumbs".*?</nav>',h)[0]
+ assert all(html.escape(i['name'],quote=True) in c for i in items)
+ assert all(urllib.parse.unquote(urllib.parse.urlsplit(i['item']).path) in regionpaths|{'/'} for i in items[:-1])
+ assert [html.unescape(x) for x in re.findall(r'<a href="([^"]+)"',c)]==[urllib.parse.unquote(urllib.parse.urlsplit(i['item']).path) for i in items[:-1]]
+def exact_coord(p):return p.get('geoPrecision')=='exact' and all(type(p.get(k)) in (int,float) and math.isfinite(p[k]) and 0<abs(p[k])<=lim for k,lim in [('lat',90),('lng',180)])
+fields=('phone','hours','closedDays','parking','indoor','outdoor','petSize','petSizeSmall','petSizeMedium','petSizeLarge','petFee','restrictions','floorAllowed','terrace','carrierRequired','vaccinationCheck','menu','description','homepage')
+def tier(p):return 0 if '식약처 인증' in (p.get('tags') or []) else 1 if '등록업체' in (p.get('tags') or []) else 2 if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터')) else 3
+def known(v):return v not in (None,'',[],{}) and (not isinstance(v,str) or bool(v.strip()) and v.strip() not in ('확인 필요','미확인','정보 없음','-'))
+def sortkey(p,sv):return (tier(p),not exact_coord(p),-sum(known(p.get(k)) for k in fields),('카페' if p['category']=='애견카페' else p['category']) not in sv,p['name'],p['id'])
+related_count=0
+areas={}
+
+for item in seo:
+ f=item['filter'];sv=f['service'] if isinstance(f['service'],list) else [f['service']];ids=set().union(*(idx[v,f['sido'],f['sigungu'],f['dongKey']] for v in sv));path=item['path'].rstrip('/')+'/';expected.add(path);areas[path]=ids
+ h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');links=row_re.findall(h);ld=json.loads(ld_re.search(h)[1]); assert len(links)==len(ids)==item['count'] and set(links)==ids and ld['numberOfItems']==len(ids) and [x['url'].split('/')[-2] for x in ld['itemListElement']]==links;assert links==[p['id'] for p in sorted((by[i] for i in ids),key=lambda p:sortkey(p,sv))];assert '<link rel="canonical"' in h and '<meta name="description"' in h
+ valid_meta(h);lds=[json.loads(x) for x in ld_re.findall(h)];assert len(lds)==3;valid_crumb(h,lds[1],path);faq=lds[2];assert faq['@type']=='FAQPage' and 2<=len(faq['mainEntity'])<=3
+ for q in faq['mainEntity']:
+  assert html.escape(q['name'],quote=True) in h and html.escape(q['acceptedAnswer']['text'],quote=True) in h
+ related=re.search(r'<section class="panel related-regions".*?</section>',h)[0];targets=[html.unescape(x) for x in re.findall(r'<a href="([^"]+)"',related)];assert set(targets)<=regionpaths and len(targets)==len(set(targets)) and path not in targets;related_count+=len(targets)
+ assert 'region-summary' in h
+ads,premium=schedules(snapshot,areas,set(by))
+for path,rs in ads.items():
+ h=(S/path.lstrip('/')/'index.html').read_text();assert h.count('data-slot=')==len(rs)
+ for r in rs:assert f'data-slot="{r["slot"]}" data-start="{r["start_date"]}" data-end="{r["end_date"]}"' in h
+geo=collections.Counter();kakao_count=0;road_count=0
+for p in a:
+ i=p['id'];path='/place/'+i+'/';expected.add(path);h=(S/path.lstrip('/')/'index.html').read_text(encoding='utf-8');ld=json.loads(ld_re.search(h)[1]);exact=p['geoPrecision']=='exact' and all(type(p[k]) in (int,float) and math.isfinite(p[k]) and 0<abs(p[k])<=lim for k,lim in [('lat',90),('lng',180)])
+ assert h.count('class="panel premium-detail"')==len(premium.get(i,[]))
+ assert ('영업 여부 확인 필요' in h)==('동물병원' in p['services'] and not p.get('openStatusSource'));assert '<b>위치 정보 출처</b>' in h
+ kid=p.get('kakaoPlaceId');road=p.get('roadAddress');assert '<b>도로명주소</b>' in h
+ if road:assert html.escape(road,quote=True) in h and ld['address']['streetAddress']==road;road_count+=1
+ if kid:assert re.fullmatch(r'[0-9]+',kid) and f'href="https://place.map.kakao.com/{kid}"' in h;kakao_count+=1
+ else:assert '카카오맵에서 보기' not in h
+ tags=p.get('tags') or [];label='식약처 공식 인증' if '식약처 인증' in tags else '등록업체' if '등록업체' in tags else '공공데이터' if any(t in str(p.get('source')) for t in ('식약처','농림축산식품부','한국문화정보원','공공데이터')) else '제보'
+ assert ('geo' in ld)==exact and f'>{label}</span>' in h and 'source-badge' in h;assert ld['@type']=={'동물병원':'VeterinaryCare','식당':'Restaurant','카페':'CafeOrCoffeeShop','애견카페':'CafeOrCoffeeShop','숙소':'LodgingBusiness','여행지':'TouristAttraction'}.get(p['category'],'LocalBusiness') and ld['name']==p['name'];assert ({x['itemOffered']['name'] for x in ld['makesOffer']} if ld['@type']!='TouristAttraction' else {x['value'] for x in ld['additionalProperty']})==set(p['services']);valid_meta(h);valid_crumb(h,json.loads(ld_re.findall(h)[1]),path); assert 'type=correction' in h and 'type=closure' in h and 'type=owner' in h; assert [h.index('<h2>'+v+'</h2>') for v in ['동반 조건','운영시간·휴무','주차','연락처','출처·확인일']]==sorted(h.index('<h2>'+v+'</h2>') for v in ['동반 조건','운영시간·휴무','주차','연락처','출처·확인일']);geo['exact' if exact else 'approx' if p['geoPrecision'] in ('dong','sigungu') else 'none']+=1
+
+for o,n in merged.items():
+ h=(S/'place'/o/'index.html').read_text(encoding='utf-8');assert f'content="0;url=/place/{n}/"' in h and f'href="{report["siteUrl"]}/place/{n}/"' in h
+locs=[urllib.parse.unquote(urllib.parse.urlsplit(e.text).path) for e in ET.parse(S/'sitemap.xml').findall('.//{*}loc')];assert len(locs)==len(set(locs)) and set(locs)==expected
+redirects=load(R/'deploy/redirects.json');assert len(redirects)==len(merged)+6
+for old,new in redirects.items():
+ assert new in expected and old not in expected and (S/old.strip('/')/'index.html').is_file();assert f'content="0;url={new}"' in (S/old.strip('/')/'index.html').read_text()
+assert geo['exact']==report['mapped']; assert len([f for f in S.rglob('*.html') if f.name!='offline.html'])==len(expected)+len(redirects)
+form=(S/'owner/index.html').read_text()
+if not (RELEASE_MODE and not report['formsEnabled']):assert all(f'name="{n}"' in form for n in ['privacyConsent','petSizeLarge','indoor','parking','operating']);assert 'type="checkbox" required name="privacyConsent"' in form
+for path in ['/privacy/','/terms/','/sources/','/owner/terms-ads/']:assert (S/path.strip('/')/'index.html').is_file()
+for f in S.rglob('*.html'):
+ if f.name!='offline.html':valid_meta(f.read_text(encoding='utf-8'))
+assert (S/'og-brand.png').is_file()
+assert road_count==report['roadAddressCount'] and kakao_count==report['kakaoIdCount']
+rules=[x.split() for x in (S/'_redirects').read_text().splitlines()];assert len(rules)==2*len(redirects) and all(len(x)==3 and x[2]=='301!' for x in rules);assert {o:urllib.parse.unquote(n) for o,n,_ in rules if not o.endswith('index.html')}==redirects
+assert ('data-netlify="true"' in form)==report['formsEnabled'] and ('data-live="true"' in form)==report['formsEnabled']
+if not (RELEASE_MODE and not report['formsEnabled']):assert 'name="form-name" value="eodigagae-intake"' in form
+home=(S/'index.html').read_text()
+if RELEASE_MODE and not report['formsEnabled']:assert 'name="eodigagae-launch"' not in home
+else:assert 'name="eodigagae-launch"' in home and 'name="email" type="email" required' in home and ('data-netlify="true"' in home)==report['formsEnabled']
+if not (RELEASE_MODE and not report['formsEnabled']):
+ for text in (home,form):
+  assert all('name="'+k+'"' in text for k in ('acquisitionChannel','utm_source','utm_medium','utm_campaign','utm_content','utm_term'))
+  assert all('value="'+k+'"' in text for k in ('blog','cafe','instagram','threads','store_qr','other'))
+assert ('Disallow: /\n' in (S/'robots.txt').read_text())==report['preview']
+print(json.dumps({'relatedLinks':related_count,'regionFaqPages':len(seo),'breadcrumbPages':len(a)+len(seo),'socialMetaPages':len(expected)+len(redirects),'uniquePlaces' :len(a),'regionPages':len(seo),'regionMismatch':0,'redirects':len(redirects),'sitemapUrls':len(locs),'htmlFiles':len(expected)+len(redirects),'coordinateCounts':geo,'serviceCounts':actual,'kakaoLinks':kakao_count,'roadAddresses':road_count,'netlifyRedirectRules':len(rules),'formsEnabled':report['formsEnabled'],'indexingAllowed':not report['preview'],'admin':report['admin'],'status':'PASS'},ensure_ascii=False,indent=2))
