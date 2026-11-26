@@ -45,14 +45,14 @@ assert all(re.fullmatch(r'[pf]\d+',i) for i in IDS | MERGED.keys())
 # Clear generated pages and data on rebuild; preserve only hand-authored assets.
 for f in SITE.iterdir():
  if f.is_dir():shutil.rmtree(f)
- elif f.name not in {'app.js','map.js','kakao-map.js','style.css','og-brand.png','brand.svg','ui.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable.png','offline.html','adfit.js','hours.js','v13.css','contribute.js','nearby.js','v15.js','pwa.js','external-reviews.js','naver-search.js','search.js','search-ui.js','search-worker.js','analytics.js','compare.js','CNAME','hours.js'}:f.unlink()
+ elif f.name not in {'app.js','map.js','kakao-map.js','style.css','og-brand.png','brand.svg','ui.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable.png','offline.html','adfit.js','hours.js','v13.css','contribute.js','nearby.js','v15.js','pwa.js','external-reviews.js','naver-search.js','search.js','search-ui.js','tabbar.js','tabbar.css','search-worker.js','analytics.js','compare.js','CNAME','hours.js'}:f.unlink()
 KAKAO_JS_KEY=os.environ.get('KAKAO_JS_KEY','').strip()
 assert not KAKAO_JS_KEY or re.fullmatch(r'[A-Za-z0-9_-]{10,128}',KAKAO_JS_KEY), 'Invalid Kakao JS key'
 reviews,photos=content(SRC,SITE,IDS,MERGED)
 owner_photos=load_owner_photos(SRC,A,MERGED,SITE)
 own_ratings(A,reviews)
-(SITE/'bundle.css').write_text('\n'.join(line.strip() for f in (SITE/'style.css',SITE/'v13.css') for line in f.read_text(encoding='utf-8').splitlines() if line.strip()),encoding='utf-8')
-for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js','analytics.js')),('discovery.js',('search.js','app.js','search-ui.js'))]:
+(SITE/'bundle.css').write_text('\n'.join(line.strip() for f in (SITE/'style.css',SITE/'v13.css',SITE/'tabbar.css') for line in f.read_text(encoding='utf-8').splitlines() if line.strip()),encoding='utf-8')
+for name,assets in [('core.js',('hours.js','v15.js','ui.js','pwa.js','analytics.js','tabbar.js')),('discovery.js',('search.js','app.js','search-ui.js'))]:
  (SITE/name).write_text(('globalThis.EGAnalyticsEndpoint='+json.dumps(ANALYTICS_ENDPOINT)+';\n' + 'globalThis.EGKakaoKey='+json.dumps(KAKAO_JS_KEY)+';\n' if name=='core.js' else 'globalThis.EGArt23='+json.dumps({'base':ART_BASE,'scenes':SCENES},ensure_ascii=False)+';\n')+'\n;\n'.join((SITE/asset).read_text(encoding='utf-8') for asset in assets),encoding='utf-8')
 ASSET_HASH=hashlib.sha256(b''.join(f.read_bytes() for f in sorted(SITE.glob('*.js'))+sorted(SITE.glob('*.css')))).hexdigest()[:16]
 E=lambda x:html.escape(str(x if x is not None else ''),quote=True)
