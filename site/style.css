@@ -215,3 +215,5 @@ body{color:#1b2333;-webkit-font-smoothing:antialiased;word-break:keep-all}
 .owner-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;background:linear-gradient(90deg,#2b1d14,#4a2c1a);color:#fff;border-radius:20px;padding:22px 26px;margin:8px 0}.owner-banner b{display:block;font-size:20px}.owner-banner span{font-size:13.5px;color:#f3d9c4}.owner-banner .btn{background:#F26B1D;border-color:#F26B1D;color:#fff;font-weight:800;white-space:nowrap}
 @media(max-width:760px){.owner-perks{grid-template-columns:1fr 1fr}.owner-hero h1{font-size:25px}.owner-banner{flex-direction:column;align-items:flex-start}}
 .owner-banner em{font-style:normal}
+
+.region-hint{margin-left:8px;border:1px solid #F26B1D;color:#F26B1D;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer}
