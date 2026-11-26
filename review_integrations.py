@@ -45,7 +45,8 @@ def config():
  return {'googleKey':'', 'googleEndpoint':google_endpoint if enabled and (mode=='all' or mode=='fallback' and match) else '', 'naverEndpoint':endpoint if nav else '', 'photos':enabled and os.environ.get('GOOGLE_PHOTOS_ENABLED','false').lower()=='true', 'googleMode':mode,'naverMatch':bool(match),'naverImage':bool(image),'imageOnCards':False}
 
 def google_enabled(p,ids,cfg):
- return bool(score(p) is not None and cfg['googleEndpoint'] and p.get('sigungu') and (p.get('roadAddress') or p.get('address')) and (cfg['googleMode']=='all' or cfg['googleMode']=='fallback' and cfg['naverMatch']))
+ # v1.9: only places whose Google place ID was verified in advance call Google (cost control)
+ return bool(p.get('id') in ids and score(p) is not None and cfg['googleEndpoint'] and p.get('sigungu') and (p.get('roadAddress') or p.get('address')) and (cfg['googleMode']=='all' or cfg['googleMode']=='fallback' and cfg['naverMatch']))
 
 def detail(p,ids,cfg):
  if score(p) is None:return ''
