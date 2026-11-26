@@ -1,0 +1,23 @@
+[
+ {
+  "id": "p03218",
+  "name": "강아지대학로",
+  "reason": "매장 공식 인스타 고정 게시물에 '반려견 동반불가' 안내(상주견 카페)",
+  "evidence": "https://www.instagram.com/dogdaehak.ro_dogcafe/",
+  "checkedOn": "2026-11-26"
+ },
+ {
+  "id": "p03350",
+  "name": "개상전 애견카페",
+  "reason": "매장 공식 인스타 소개란 '영업 종료'",
+  "evidence": "https://www.instagram.com/gaesangjeon/",
+  "checkedOn": "2026-11-26"
+ },
+ {
+  "id": "p02916",
+  "name": "100코달리 와인바",
+  "reason": "매장 인스타 게시물 0개·'다음에 다시 만나요' (영업 종료 추정)",
+  "evidence": "https://www.instagram.com/100caudalie/",
+  "checkedOn": "2026-11-26"
+ }
+]
