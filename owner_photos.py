@@ -28,7 +28,9 @@ def cover(p,service):
  if r:return f'<div class="cover owner-photo-cover"><img src="{E(r["src"])}" alt="{E(r["caption"])}" width="480" height="300" loading="lazy" decoding="async"><span class="photo-credit">{E(r["label"])} · {E(r["credit"])}</span></div>'
  if p.get('tourPhoto'):
   t=p['tourPhoto'];return f'<div class="cover tour-photo-cover"><img src="{E(t["src"])}" alt="{E(t["caption"])}" loading="lazy" decoding="async"><span class="photo-credit">한국관광공사 · 공공누리 {E(t["license"])}유형 · <a href="https://www.data.go.kr/data/15135102/openapi.do">출처</a></span></div>'
- return f'<div class="cover place-art" data-kind="{E(p["category"])}"><span class="art-label">{E(service)} · 사진 준비 중</span></div>'
+ from art23 import ART_ICON
+ k=next((x for x in [p.get('category')]+list(p.get('services') or []) if x in ART_ICON),'여행지')
+ return f'<div class="cover cover-ph" data-kind="{E(p["category"])}"><svg viewBox="0 0 24 24" aria-hidden="true">{ART_ICON[k]}</svg><span>{E(service)} · 등록된 사진 없음</span></div>'
 
 def gallery(rows):
  if not rows:return ''

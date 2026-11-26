@@ -230,14 +230,38 @@ def _fv(p,v):
  if v=="phone" and isinstance(x,str) and re.search(r"\d{2,4}-\d{3,4}-\d{4}",x):return f'<a href="tel:{E(re.sub(r"[^0-9]","",x))}">{E(x)}</a>'
  if v in("homepage","sourceUrl") and isinstance(x,str) and x.startswith(("https://","http://")):return f'<a href="{E(x)}" rel="nofollow noopener" target="_blank">{E(x)}</a>'
  return E(fmt(x))
-def block(title,p,fields):
+def block(title,p,fields,sid=''):
  kn=[(k,v) for k,v in fields if known(p.get(v)) or (v=="operating" and isinstance(p.get(v),bool))]
- return ('<section class="panel known-facts"'+(' hidden' if not kn else '')+'><h2>'+E(title)+'</h2>'+('<dl class="kv">'+''.join(f'<div><dt>{E(k)}</dt><dd>{_fv(p,v)}</dd></div>' for k,v in kn)+'</dl>' if kn else '')+'</section>')
+ return ('<section class="panel known-facts"'+(f' id="{sid}"' if sid else '')+(' hidden' if not kn else '')+'><h2>'+E(title)+'</h2>'+('<dl class="kv">'+''.join(f'<div><dt>{E(k)}</dt><dd>{_fv(p,v)}</dd></div>' for k,v in kn)+'</dl>' if kn else '')+'</section>')
 def unknown_summary(p,fields):
  labels=[k for k,v in fields if not known(p.get(v))];labels=list(dict.fromkeys(labels))
  return ('<details class="panel unknown-summary"><summary>미확인 정보 '+str(len(labels))+'개 · 방문 전 확인</summary><p>'+E(' · '.join(labels))+'</p><p>미확인은 가능 또는 불가를 의미하지 않습니다.</p></details>') if labels else ''
 reglookup={(s['category'],s['sido'],s['sigungu'],s['filter']['dongKey']):path for s,path,rows,_,_ in pageinfo if rows};inv={v:k for k,v in category.items()}
 QA30_PLACE_META=qa30_place_meta(A)
+def _yn(v):return None if v is None or v=='' else bool(v)
+def summary_card(p):
+ rows=[];ind,out=_yn(p.get('indoor')),_yn(p.get('outdoor'))
+ scope='실내·실외 모두' if ind and out else '실내만' if ind and out is False else '실외만' if out and ind is False else '실내 가능' if ind else '실외 가능' if out else '실내·실외 불가' if ind is False and out is False else None
+ rows.append(('동반 범위',scope))
+ sz=[(n,_yn(p.get(k))) for n,k in (('소형','petSizeSmall'),('중형','petSizeMedium'),('대형','petSizeLarge'))]
+ ok=[n for n,v in sz if v];no=[n for n,v in sz if v is False]
+ size=(('·'.join(ok)+' 가능') if ok else '')+((' / ' if ok else '')+'·'.join(no)+' 불가' if no else '')
+ rows.append(('반려견 크기',size or (p.get('petSize') if known(p.get('petSize')) else None)))
+ fee=p.get('petFee');rows.append(('추가 요금',('있음' if fee else '없음') if isinstance(fee,bool) else (fee if known(fee) else None)))
+ rows.append(('운영시간',p.get('hours') if known(p.get('hours')) else None))
+ pk=p.get('parking');rows.append(('주차',('가능' if pk else '불가') if isinstance(pk,bool) else (pk if known(pk) else None)))
+ tel=telephone(p.get('phone'));rows.append(('전화',f'<a href="tel:{E(tel)}">{E(p.get("phone"))}</a>' if tel else None))
+ li=''.join(f'<div><dt>{E(k)}</dt><dd>'+((v if k=='전화' else E(str(v))) if v else '<span class="need-check">확인 필요</span>')+'</dd></div>' for k,v in rows)
+ ref=next((p.get(k) for k in ('latestEvidenceDate','lastChecked','updatedAt') if known(p.get(k))),None)
+ return ('<section class="panel place-summary" id="summary"><h2>한눈에 보기</h2><dl class="sum-grid">'+li+'</dl>'
+  '<p class="muted sum-note">크기 기준(어디가개): 소형 10kg 미만 · 중형 10~25kg · 대형 25kg 이상. 매장 기준과 다를 수 있어요.'+(f' 정보 기준일 {E(str(ref))}.' if ref else '')+' 방문 전 매장에 확인해 주세요.</p></section>')
+def section_tabs(items):
+ return '<nav class="detail-tabs" aria-label="상세 정보 이동">'+''.join(f'<a href="#{i}">{E(t)}</a>' for i,t in items)+'</nav>'
+def fix_panel(p,name):
+ q=f'place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}'
+ ref=next((p.get(k) for k in ('latestEvidenceDate','lastChecked','updatedAt') if known(p.get(k))),None)
+ return ('<section class="panel fix-panel" id="fix"><h2>정보가 다르거나 사장님이신가요?</h2><p class="muted">'+(f'정보 기준일 {E(str(ref))} · ' if ref else '')+'잘못된 정보는 알려주시면 확인 후 반영해요.</p><div class="fix-actions">'
+  f'<a class="btn" href="/owner/?type=correction&amp;{q}">정보 수정 제안</a><a class="btn" href="/owner/?type=closure&amp;{q}">폐업 신고</a><a class="btn primary" href="/owner/?type=owner&amp;{q}">사장님 무료 입점 신청</a></div></section>')
 def detail_actions(p,path,name):
  acts=[];tel=telephone(p.get('phone'))
  if tel and '동물병원' not in p['services']:acts.append(f'<a class="btn primary" href="tel:{E(tel)}">📞 전화하기</a>')
@@ -255,20 +279,20 @@ def _km(a,b):
 def nearby_html(p):
  if not coord(p) or is_funeral(p):return ''
  cy,cx=int(p['lat']*50),int(p['lng']*50);cand=[]
- for dy in (-1,0,1):
-  for dx in (-1,0,1):
+ for dy in range(-3,4):
+  for dx in range(-3,4):
    for q in _NEAR.get((cy+dy,cx+dx),()):
     if q['id']==p['id'] or q['name']==p['name']:continue
     d=_km(p,q)
-    if d<=2.0:cand.append(('동물병원' in q['services'],round(d,2),q['id'],q))
+    if d<=5.0:cand.append(('동물병원' in q['services'],round(d,2),q['id'],q))
  cand.sort(key=lambda t:t[:3]);seen=set();rows=[]
  for _,d,_,q in cand:
   if q['name'] in seen:continue
   seen.add(q['name']);rows.append((d,q))
-  if len(rows)>=6:break
+  if len(rows)>=8:break
  if not rows:return ''
  li=''.join(f'<li><a href="{E(placepath(q))}"><b>{E(q["name"])}</b><span>{E((q["services"] or [""])[0])} · {max(d,0.1):.1f}km</span></a></li>' for d,q in rows)
- return '<section class="panel nearby"><h2>근처 다른 동반 장소</h2><ul class="nearby-list">'+li+'</ul><p class="muted">직선거리 기준</p></section>'
+ return '<section class="panel nearby" id="nearby"><h2>근처 5km 동반 장소</h2><ul class="nearby-list">'+li+'</ul><p class="muted">직선거리 기준</p></section>'
 for p in A:
  path=placepath(p);sitemap.append(path);name=p['name'];address=p.get('roadAddress') or p.get('address');area=' '.join(filter(None,[p['sido'],p['sigungu'],p['dong']]));title,desc=QA30_PLACE_META[p['id']];schema={'@context':'https://schema.org','@type':{'동물병원':'VeterinaryCare','식당':'Restaurant','카페':'CafeOrCoffeeShop','애견카페':'CafeOrCoffeeShop','숙소':'LodgingBusiness','여행지':'TouristAttraction'}.get(p['category'],'LocalBusiness'),'name':name,'url':url(path),'description':desc,'makesOffer':[{'@type':'Offer','itemOffered':{'@type':'Service','name':v}} for v in p['services']]}
  if schema['@type']=='TouristAttraction':schema.pop('makesOffer');schema['additionalProperty']=[{'@type':'PropertyValue','name':'서비스','value':v} for v in p['services']]
@@ -284,23 +308,24 @@ for p in A:
   h+='<div class="hospital-badges">'+hospital_badges(p)+'</div><p class="muted">진료 가능 여부와 접수 마감은 방문 전 전화로 확인하세요. 운영시간 표기는 실시간 진료 확인이 아닙니다.</p>'
   if telephone(p.get('phone')):h+=f'<a class="btn primary hospital-call" href="tel:{E(telephone(p.get("phone")))}">📞 병원에 전화</a>'
  if '동물병원' in p['services'] and not p.get('openStatusSource'):h+='<p class="notice">영업 여부 확인 필요</p>'
- h+='<div class="quickfacts">'+''.join(f'<div><small>{E(k)}</small><strong>{E(fmt(p.get(v)))}</strong></div>' for k,v in [('대형견','petSizeLarge'),('실내 동반','indoor'),('주차','parking')] if known(p.get(v)))+'</div>'
+ 
  h+='<details class="address-block address-details"><summary>주소 상세</summary><div class="detailgrid"><div class="fact"><b>도로명주소</b><span>'+E(fmt(p.get('roadAddress')))+'</span></div><div class="fact"><b>원본 주소</b><span>'+E(fmt(p.get('address')))+'</span></div></div></details>'
  if not is_funeral(p):
   compare_data={'id':p['id'],'name':name,'area':area,**{k:p.get(k) for k in ('indoor','outdoor','petSizeSmall','petSizeMedium','petSizeLarge','parking','petFee','restrictions','weightLimit','carrierRequired','latestEvidenceDate')}}
   h+=f'<button type="button" class="btn compare-add" data-compare="{E(json.dumps(compare_data,ensure_ascii=False))}" aria-pressed="false">＋ 동반 조건 비교</button> <a class="btn" href="/compare/">비교함 보기</a>'
  kid=p.get('kakaoPlaceId')
  if isinstance(kid,str) and re.fullmatch(r'[0-9]+',kid):h+=f'<a class="btn primary" href="https://place.map.kakao.com/{kid}" rel="noopener noreferrer" target="_blank">카카오맵에서 보기</a> '
- if coord(p):h+=f'<a class="btn" href="https://map.naver.com/p/search/{urllib.parse.quote(name+" "+(address or area),safe="")}" rel="noopener" target="_blank">지도 검색</a>'
- h+=f' <button class="btn detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button> <a class="btn" href="/owner/?type=correction&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">정보 수정 제안</a> <a class="btn" href="/owner/?type=closure&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">폐업 신고</a> <a class="btn primary" href="/owner/?type=owner&amp;place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}">사장님 무료 입점 신청</a></div></div>'
+ h+=f' <button class="btn detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button></div></div>'
+ _near=nearby_html(p);_tabs=([] if is_funeral(p) else [('summary','한눈에 보기')])+([('pet','동반 조건')] if any(known(p.get(v)) for _,v in facts) else [])+([('contact','운영시간')] if any(known(p.get(v)) for v in ('hours','closedDays')) or isinstance(p.get('operating'),bool) else [])+([('location','위치')] if coord(p) else [])+([('nearby','근처')] if _near else [])+[('fix','정보 수정')]
+ h+=section_tabs(_tabs)+('' if is_funeral(p) else summary_card(p))
  h+=tour_detail_html(p,PET,TOUR_SOURCE)
- h+=block('동반 조건',p,[f for f in facts if f[1] not in ('petFee','menu')] if is_funeral(p) else facts)
- h+=block('운영시간·휴무',p,[('영업시간','hours'),('휴무일','closedDays'),('영업 여부','operating')])+block('주차',p,[('주차','parking')])+block('연락처',p,[('전화','phone'),('홈페이지','homepage')])+source_block('출처·확인일',p,[('정보 출처','source'),('위치 정보 출처','geoSource'),('영업 확인 출처','openStatusSource'),('출처 URL','sourceUrl'),('최근 기록상 확인일','latestEvidenceDate'),('원본 정보 확인일','lastChecked'),('데이터 갱신일','updatedAt'),('인허가 번호','licenseNo')])+block('기타 정보',p,[('업종 상세','subType'),('소개','description'),('등록 업종','registryCategories')])
+ h+=block('동반 조건',p,[f for f in facts if f[1] not in ('petFee','menu')] if is_funeral(p) else facts,'pet')
+ h+=block('운영시간·휴무',p,[('영업시간','hours'),('휴무일','closedDays'),('영업 여부','operating')],'contact')+block('주차',p,[('주차','parking')])+block('연락처',p,[('전화','phone'),('홈페이지','homepage')])+source_block('출처·확인일',p,[('정보 출처','source'),('위치 정보 출처','geoSource'),('영업 확인 출처','openStatusSource'),('출처 URL','sourceUrl'),('최근 기록상 확인일','latestEvidenceDate'),('원본 정보 확인일','lastChecked'),('데이터 갱신일','updatedAt'),('인허가 번호','licenseNo')])+block('기타 정보',p,[('업종 상세','subType'),('소개','description'),('등록 업종','registryCategories')])
  h+=unknown_summary(p,facts+[('영업시간','hours'),('휴무일','closedDays'),('영업 여부','operating'),('주차','parking'),('전화','phone'),('홈페이지','homepage'),('정보 출처','source'),('위치 정보 출처','geoSource'),('영업 확인 출처','openStatusSource'),('출처 URL','sourceUrl'),('최근 기록상 확인일','latestEvidenceDate'),('원본 정보 확인일','lastChecked'),('데이터 갱신일','updatedAt'),('인허가 번호','licenseNo'),('업종 상세','subType'),('소개','description'),('등록 업종','registryCategories')])
  h+=review_detail(p,GOOGLE_IDS,REVIEW_CONFIG)
  h+=maps(p)
- if coord(p):h+=f'<section class="panel detail-kakao"><h2>위치</h2><button class="btn" type="button" data-detail-map data-lat="{E(p["lat"])}" data-lng="{E(p["lng"])}">카카오 지도 보기</button> <a class="btn" href="https://map.kakao.com/link/to/{urllib.parse.quote(name,safe="")},{p["lat"]},{p["lng"]}" target="_blank" rel="noopener noreferrer">카카오맵 길찾기</a><div class="detail-map-canvas" hidden></div><p class="muted">공공데이터 좌표 기준 · 방문 전 확인</p></section><script src="/kakao-map.js" defer></script>' 
- h+=nearby_html(p)
+ if coord(p):h+=f'<section class="panel detail-kakao" id="location"><h2>위치</h2><button class="btn" type="button" data-detail-map data-lat="{E(p["lat"])}" data-lng="{E(p["lng"])}">카카오 지도 보기</button> <a class="btn" href="https://map.kakao.com/link/to/{urllib.parse.quote(name,safe="")},{p["lat"]},{p["lng"]}" target="_blank" rel="noopener noreferrer">카카오맵 길찾기</a><div class="detail-map-canvas" hidden></div><p class="muted">공공데이터 좌표 기준 · 방문 전 확인</p></section><script src="/kakao-map.js" defer></script>' 
+ h+=_near+fix_panel(p,name)
  h+=f'<div hidden data-recent-place="{E(p["id"])}" data-recent-name="{E(name)}" data-recent-region="{E(area)}"></div>'
  if is_funeral(p):h+=funeral_actions(p,area)
  else:h+=premium_html(admin_premium.get(p['id'],[]))
