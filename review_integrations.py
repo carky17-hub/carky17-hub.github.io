@@ -54,7 +54,7 @@ def detail(p,ids,cfg):
  q=' '.join(str(x) for x in (p.get('name'),p.get('sido'),p.get('sigungu')) if x)
  nlink='https://map.naver.com/p/search/'+quote(q,safe='')
  nav=('<a class="btn" href="/naver-search/?'+E(urlencode({'q':q}))+'">네이버 블로그 검색결과 보기</a>' if cfg['naverEndpoint'] else '')
- h=f'<div class="eg-info-score">정보 충실도 <b>{score(p)}/100</b> · <a href="/information-score/">산식 보기</a><small>이용자 평점 또는 안전 인증이 아닙니다.</small></div><section class="panel external-review"><h2>외부 리뷰·사진 확인</h2><p><a class="btn" href="{E(nlink)}" target="_blank" rel="noopener noreferrer nofollow">네이버 평점·사진 보기</a> {nav}</p><p class="muted">네이버 별점 API는 제공되지 않습니다. 검색결과는 방문 후기 수와 다릅니다.</p></section>'
+ h=f'<div class="eg-info-score">정보 충실도 <b>{score(p)}/100</b> · <a href="/information-score/">산식 보기</a><small>이용자 평점 또는 안전 인증이 아닙니다.</small></div><section class="panel external-review"><h2>외부 리뷰·사진 확인</h2><p><a class="btn" href="{E(nlink)}" target="_blank" rel="noopener noreferrer nofollow">네이버 평점·사진 보기</a> {nav}</p></section>'
  if google_enabled(p,ids,cfg):
   h+=f'<section class="panel external-review" data-eg-reviews data-google-id="{E(gid)}" data-blog-query="{E(q)}" data-match-name="{E(p.get("name"))}" data-match-district="{E(p.get("sigungu"))}" data-match-sido="{E(p.get("sido"))}" data-match-address="{E(p.get("roadAddress") or p.get("address"))}"><h2>Google Maps 외부 정보</h2><button type="button" class="btn" data-google-load hidden>Google Maps 외부 정보</button><div data-google-result aria-live="polite"></div></section><script src="/reviews-config.js" defer></script><script src="/external-reviews.js" defer></script>'
  return h
