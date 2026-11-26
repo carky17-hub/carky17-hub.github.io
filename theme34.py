@@ -96,16 +96,21 @@ def build(places, pageinfo, h):
                   body, [h['listld'](top), crumbld])
         paths.append(path)
         if slug != '24h-hospital':
-            home.append((path, title, icon, len(rows)))
+            used = {x[4] for x in home}
+            ph = next((q['tourPhoto']['src'] for q in rows if q.get('tourPhoto') and q['tourPhoto'].get('src') and q['tourPhoto']['src'] not in used), '')
+            home.append((path, title, icon, len(rows), ph))
     return paths, home
 
 
 def home_section(items, E):
     if not items:
         return ''
-    cards = ''.join(
-        f'<a class="theme-card" href="{E(p)}"><img class="theme-thumb" src="/art/theme-{THUMB.get(p.split("/")[2],"park")}.png" alt="" width="600" height="400" loading="lazy" decoding="async">'
-        f'<b>{E(t)}</b><small>전국 {n:,}곳</small></a>' for p, t, icon, n in items)
+    def one(p, t, n, ph):
+        img = (f'<img class="theme-thumb" src="{E(ph)}" alt="" width="600" height="400" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+               if ph else '<span class="theme-thumb"></span>')
+        cr = '<i class="theme-credit">사진 한국관광공사</i>' if ph else ''
+        return f'<a class="theme-card" href="{E(p)}">{img}{cr}<b>{E(t)}</b><small>전국 {n:,}곳</small></a>'
+    cards = ''.join(one(p, t, n, ph) for p, t, icon, n, ph in items)
     return ('<section class="section theme-section"><div class="head"><h2>테마별 모아보기</h2>'
             '<span class="muted">조건으로 바로 찾기</span></div><div class="theme-grid">' + cards + '</div></section>')
 

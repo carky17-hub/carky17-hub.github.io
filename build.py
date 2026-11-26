@@ -46,7 +46,7 @@ assert all(re.fullmatch(r'[pf]\d+',i) for i in IDS | MERGED.keys())
 for f in SITE.iterdir():
  if f.is_dir():shutil.rmtree(f)
  elif f.name not in {'app.js','map.js','kakao-map.js','style.css','og-brand.png','brand.svg','ui.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable.png','offline.html','adfit.js','hours.js','v13.css','contribute.js','nearby.js','v15.js','pwa.js','external-reviews.js','naver-search.js','search.js','search-ui.js','tabbar.js','tabbar.css','search-worker.js','analytics.js','compare.js','CNAME','hours.js'}:f.unlink()
-shutil.copytree(SRC/'art',SITE/'art',dirs_exist_ok=True)
+if (SRC/'art').exists():shutil.copytree(SRC/'art',SITE/'art',dirs_exist_ok=True)
 KAKAO_JS_KEY=os.environ.get('KAKAO_JS_KEY','').strip()
 assert not KAKAO_JS_KEY or re.fullmatch(r'[A-Za-z0-9_-]{10,128}',KAKAO_JS_KEY), 'Invalid Kakao JS key'
 reviews,photos=content(SRC,SITE,IDS,MERGED)
