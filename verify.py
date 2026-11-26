@@ -175,7 +175,7 @@ home=(S/'index.html').read_text(encoding='utf-8')
 boot=json.loads(re.search(r'<script type="application/json" id="homeBoot">(.*?)</script>',home,re.S)[1])
 seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not exact_coord(p),p['id']))
 assert boot['total']==len(seoul) and boot['mapped']==sum(map(exact_coord,seoul))
-assert [p['id'] for p in boot['rows']]==[p['id'] for p in seoul[:12]]
+assert [p['id'] for p in boot['rows']]==[p['id'] for p in seoul[:20]]
 assert all(x['key']==lookup[x['id']] and all(x[f]==by[x['id']].get(f) for f in m['fields']) for x in boot['rows'])
 assert 'id="pwaInstall"' in home and home.count('data-cat=')==10
 assert indexable({'level':'dong'},3) and not indexable({'level':'dong'},2) and indexable({'level':'sigungu'},1)
