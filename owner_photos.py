@@ -1,3 +1,4 @@
+import urllib.parse
 """Only operator-approved, rights-cleared owner photos. Public metadata only."""
 import json,re,html,collections,shutil,datetime
 E=lambda x:html.escape(str(x or ''),quote=True)
@@ -30,7 +31,7 @@ def cover(p,service):
   t=p['tourPhoto'];return f'<div class="cover tour-photo-cover"><img src="{E(t["src"])}" alt="{E(t["caption"])}" loading="lazy" decoding="async"><span class="photo-credit">한국관광공사 · 공공누리 {E(t["license"])}유형 · <a href="https://www.data.go.kr/data/15135102/openapi.do">출처</a></span></div>'
  from art23 import ART_ICON
  k=next((x for x in [p.get('category')]+list(p.get('services') or []) if x in ART_ICON),'여행지')
- return f'<div class="cover cover-ph" data-kind="{E(p["category"])}"><svg viewBox="0 0 24 24" aria-hidden="true">{ART_ICON[k]}</svg><span>{E(service)} · 등록된 사진 없음</span></div>'
+ return f'<div class="cover cover-ph" data-kind="{E(p["category"])}"><svg viewBox="0 0 24 24" aria-hidden="true">{ART_ICON[k]}</svg><span>{E(service)} · 등록된 사진 없음</span><a class="cover-cta" href="/owner/?type=owner&amp;place={E(p['id'])}&amp;name={E(urllib.parse.quote(p.get('name') or ''))}">사장님이신가요? 사진을 올리면 목록 위쪽에 보여요 →</a></div>'
 
 def gallery(rows):
  if not rows:return ''
