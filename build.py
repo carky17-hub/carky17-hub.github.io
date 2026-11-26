@@ -267,7 +267,7 @@ for p in A:
  h+='<div class="m-actions">'+(f'<a class="btn" href="tel:{E(re.sub(r"[^0-9]","",ph))}">📞 전화</a>' if ph else '')+f'<a class="btn" rel="nofollow noopener" target="_blank" href="https://map.naver.com/p/search/{urllib.parse.quote((p.get("sigungu") or "")+" "+p["name"])}">🗺️ 지도·리뷰</a><button class="btn primary detail-save" data-place-save="{E(p["id"])}" data-shard="{E(lookup[p["id"][:3]][p["id"]])}" aria-pressed="false">♡ 저장</button></div>'
  h+=owner_gallery(owner_photos.get(p['id'],[]))
  if not is_funeral(p):h+=f'<section class="panel" id="photo-contribute"><h2>이 장소 사진 올리기</h2><p>직접 촬영한 사진을 보내 주세요. 검수 후 대표 사진으로 채택될 수 있으며, 희망하면 공개 닉네임을 사진 크레딧에 표시합니다. 금전 보상·노출 우대는 없습니다.</p><a class="btn primary" data-eg-event="photo" href="/contribute/?place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}#visitor-photo">이 장소 사진 올리기</a></section>'
- h+=detail_content(p['id'],reviews,photos).replace('?place='+p['id']+'#','?place='+p['id']+'&amp;name='+E(urllib.parse.quote(name))+'#')
+ h+=detail_content(p['id'],reviews,photos,owner_photos.get(p['id'],[])).replace('?place='+p['id']+'#','?place='+p['id']+'&amp;name='+E(urllib.parse.quote(name))+'#')
  page(path,title,desc,h,[schema,crumbld],place=p)
 # centralized form and policy pages; local download only
 from forms import form, intake_js, md_html
@@ -278,7 +278,7 @@ if ENABLE_FORMS:
  form=convert(form.replace('[대표 이메일 확정 후 안내]',E(CONTACT_EMAIL)).replace('data-live="false"',f'data-live="true" data-processor-notice="{E(notice())}"').replace('value="draft-2026-11-25"',f'value="{E(POLICY_VERSION)}"').replace('검수용: 실제 개인정보를 입력하지 마세요. 서버 접수 없이 입력한 내용을 JSON으로 저장하는 시연입니다. 정책은 초안입니다.','신청 내용은 접수 후 검토합니다. 제보가 즉시 업체 정보에 반영되지는 않습니다.').replace('검수용 JSON 저장 (접수 아님)','신청 접수하기').replace('개인정보처리방침(초안)','개인정보처리방침'))
 else:form=fallback()
 if ENABLE_FORMS and config.KAKAO_CHANNEL_URL:form+='<p>'+contact_markup()+'</p>'
-form+='<p><a class="btn" href="/contribute/#owner-photo">사장님 사진 제출 (입점과 별도 검수)</a></p>'
+if ENABLE_FORMS:form+='<p><a class="btn" data-owner-photo-link href="/contribute/#owner-photo">사진만 별도로 제출하기</a></p>'
 page('/owner/pricing/','사장님 광고 상품 | 어디가개','무료 입점, 프리미엄 매장 월 29,000원, 지역 상단 광고 월 49,000~99,000원 안내.',pricing)
 adpolicy=(SRC/'ad-policy.md').read_text(); contract=adpolicy.split('## C.',1)[1].split('## D.',1)[0].split('\n',1)[1]; contract='# 광고·프리미엄 이용계약서 (초안)\n> 계약서 초안입니다. 개별 계약 조건 및 최종 법률 검토 후 사용하세요. 허위 광고 중단 시 노출된 기간은 환불하지 않고, 남은 기간 일할 금액에서 위약금 10%를 공제합니다.\n'+contract
 page('/owner/terms-ads/','광고 이용계약서 | 어디가개','광고 및 프리미엄 상품 이용계약서 초안',md_html(identity(contract).replace('**','')+'\n'+business_lines()))

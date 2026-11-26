@@ -49,3 +49,15 @@ intake_js=intake_js.replace('const owner=t===\'owner\',pricing=', '''const photo
 intake_js=intake_js.replace("if(!f.reportValidity()||!f.elements.privacyConsent.checked)return;", '''const pf=f.querySelector('#ownerPhotoFields'),files=f.elements.ownerPhotos?.files||[],hasPhoto=!pf.disabled&&(files.length||f.elements.ownerPhotoLink?.value.trim());if(hasPhoto&&(!f.elements.ownerPhotoRights.checked||!f.elements.ownerPortraitRights.checked)){document.getElementById('result').textContent='사진의 저작권·초상권을 모두 확인해 주세요.';return}if(!pf.disabled&&(files.length>10||Array.from(files).some(x=>x.size>5000000||!['image/jpeg','image/png','image/webp'].includes(x.type)))){document.getElementById('result').textContent='사진은 최대 10장, 각 5MB 이하 JPG/PNG/WebP만 가능합니다.';return}if(!f.reportValidity()||!f.elements.privacyConsent.checked)return;''')
 intake_js=intake_js.replace("headers:{'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(new FormData(f)).toString()", "headers:{'Accept':'application/json'},body:new FormData(f)")
 intake_js=intake_js.replace('선택 이메일 및 메모 / 목적: 입점','선택 이메일·메모·사진 또는 사진 링크와 권리 동의 / 목적: 입점').replace('선택 근거 URL·이메일 / 목적: 정보 정정','선택 근거 URL·이메일·사진 또는 사진 링크와 권리 동의 / 목적: 정보 정정')
+
+# v3.1 owner intake: public business hours and carry existing place context to photo-only form.
+_owner_hours_anchor='</fieldset><fieldset id="ownerFields">'
+assert form.count(_owner_hours_anchor)==1, 'owner hours markup anchor changed'
+form=form.replace(_owner_hours_anchor,'<fieldset id="ownerHoursFields" hidden disabled><legend>영업시간 정보 (선택)</legend><label>영업시간<input name="hours" maxlength="300" placeholder="예: 평일 10:00~20:00"></label><label>휴무일<input name="closedDays" maxlength="300" placeholder="예: 매주 월요일"></label></fieldset>'+_owner_hours_anchor,1)
+_owner_js_anchor='const owner=t===\'owner\',pricing='
+assert intake_js.count(_owner_js_anchor)==1, 'owner update anchor changed'
+intake_js=intake_js.replace(_owner_js_anchor,"const hoursFields=document.getElementById('ownerHoursFields');hoursFields.hidden=hoursFields.disabled=!(t==='owner'||t==='correction');const owner=t==='owner',pricing=",1)
+_owner_link_anchor='f.elements.type.onchange=update;update();'
+assert intake_js.count(_owner_link_anchor)==1, 'owner photo link anchor changed'
+intake_js=intake_js.replace(_owner_link_anchor,_owner_link_anchor+"const photoLink=document.querySelector('[data-owner-photo-link]');if(photoLink){function photoTarget(){const p=new URLSearchParams(),id=f.elements.placeId.value.trim(),name=f.elements.name.value.trim();if(/^[pf][0-9]+$/.test(id))p.set('place',id);if(name)p.set('name',name.slice(0,120));photoLink.setAttribute('href','/contribute/'+(p.toString()?'?'+p.toString():'')+'#owner-photo')}photoTarget();f.elements.placeId.addEventListener('input',photoTarget);f.elements.name.addEventListener('input',photoTarget);photoLink.addEventListener('click',photoTarget);}",1)
+intake_js=intake_js.replace('주소, 동반 조건, 선택','주소, 동반 조건, 선택 영업시간·휴무일,').replace('수정 내용·동반 조건, 선택','수정 내용·동반 조건, 선택 영업시간·휴무일,')

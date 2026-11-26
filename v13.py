@@ -97,11 +97,11 @@ def content(src,site,ids,merged):
    out[i][pid].append(r)
  return out
 
-def detail_content(pid,reviews,photos):
- h='<section class="panel" id="photos"><h2>사장님 제공 사진</h2>'
+def detail_content(pid,reviews,photos,owner_rows=()):
+ h='<section class="panel" id="photos"><h2>'+('사진 제출' if owner_rows and not photos.get(pid) else '사장님 제공 사진')+'</h2>'
  for r in photos.get(pid,[]):
   h+=f'<figure class="approved-photo"><img loading="lazy" src="/approved-photos/{E(r["filename"])}" alt="{E(r["caption"])}"><figcaption>{"AD · " if r["advertising"] else ""}점주 제공 · {E(r["caption"])} · {E(r["credit"])} · 게시물 {E(r["id"])}</figcaption></figure>'
- if not photos.get(pid):h+='<p>게시 승인된 사진이 없습니다.</p>'
+ if not photos.get(pid) and not owner_rows:h+='<p>게시 승인된 사진이 없습니다.</p>'
  h+=f'<a class="btn" href="/contribute/?place={E(pid)}#owner-photo">사장님 사진 제출</a> <a class="btn" href="/contribute/?place={E(pid)}#visitor-photo">방문자 사진 제보</a></section><section class="panel" id="reviews"><h2>이용자 방문 후기</h2>'
  for r in sorted(reviews.get(pid,[]),key=lambda r:r['publishedOn'],reverse=True):
   ad=r['relationship']!='customer' or r['benefit']!='none';rating=(' · ★ '+str(r['rating'])+'/5' if not pid.startswith('f') and not ad and r.get('visitVerified') is True and r.get('rating') else '');h+=f'<article class="approved-review"><b>{E(r["nickname"])}</b>{rating} · 방문일 {E(r["visitOn"])} · 게시물 {E(r["id"])}<p>{"AD · 이해관계 있음 · " + E(r["disclosure"]) if ad else "혜택 없음 (작성자 신고)"}</p><p>{E(r["text"])}</p></article>'

@@ -16,7 +16,7 @@ def load_owner_photos(src,places,merged,site=None):
   assert datetime.date.fromisoformat(r['publishedOn'])<=datetime.date.today()
   f=src/'public-photos'/r['filename'];assert f.is_file() and 0<f.stat().st_size<=5_000_000
   h=f.read_bytes()[:12];assert f.suffix in ('.jpg','.jpeg') and h.startswith(b'\xff\xd8\xff') or f.suffix=='.png' and h.startswith(b'\x89PNG\r\n\x1a\n') or f.suffix=='.webp' and h[:4]==b'RIFF' and h[8:12]==b'WEBP'
-  assert len(out[pid])<10 and r['filename'] not in {x['filename'] for x in out[pid]}
+  assert len(out[pid])<10 and ('/approved-photos/'+r['filename']) not in {x['src'] for x in out[pid]}
   out[pid].append({'src':'/approved-photos/'+f.name,'caption':r['caption'],'credit':r['credit'],'label':('AD · ' if r.get('advertising') else '')+('방문자 제공' if is_visitor else '사장님 제공')})
   if site is not None:
    d=site/'approved-photos'/f.name;d.parent.mkdir(exist_ok=True);shutil.copyfile(f,d)
