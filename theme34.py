@@ -17,6 +17,7 @@ THEMES = [
      lambda p, sv: '여행지' in sv and p.get('outdoor') is True),
 ]
 MIN_ROWS = 3
+THUMB = {'large-dog': 'large-dog', 'indoor': 'indoor', 'parking': 'parking', '24h-hospital': 'night-vet', 'pet-stay': 'stay', 'walk': 'park'}
 LIST_CAP = 300
 
 
@@ -103,7 +104,26 @@ def home_section(items, E):
     if not items:
         return ''
     cards = ''.join(
-        f'<a class="theme-card" href="{E(p)}"><span class="theme-icon" aria-hidden="true">{icon}</span>'
+        f'<a class="theme-card" href="{E(p)}"><img class="theme-thumb" src="/art/theme-{THUMB.get(p.split("/")[2],"park")}.png" alt="" width="600" height="400" loading="lazy" decoding="async">'
         f'<b>{E(t)}</b><small>전국 {n:,}곳</small></a>' for p, t, icon, n in items)
     return ('<section class="section theme-section"><div class="head"><h2>테마별 모아보기</h2>'
             '<span class="muted">조건으로 바로 찾기</span></div><div class="theme-grid">' + cards + '</div></section>')
+
+
+def home_guide(copy, E):
+    """Static info block for the home page (usage, condition guide, checklist, FAQ)."""
+    if not copy:
+        return '', None
+    u, g, c, f = copy.get('usage', {}), copy.get('condition_guide', {}), copy.get('checklist', {}), copy.get('faq', {})
+    h = '<section class="section home-guide"><div class="guide-grid">'
+    h += '<div class="guide-box"><h2>' + E(u.get('title', '사용법')) + '</h2><ol class="guide-steps">' + ''.join(
+        f'<li><b>{E(s["title"])}</b><span>{E(s["text"])}</span></li>' for s in u.get('steps', [])) + '</ol></div>'
+    h += '<div class="guide-box"><h2>' + E(g.get('title', '동반 조건 보는 법')) + '</h2><dl class="guide-terms">' + ''.join(
+        f'<div><dt>{E(i["label"])}</dt><dd>{E(i["text"])}</dd></div>' for i in g.get('items', [])) + '</dl></div>'
+    h += '<div class="guide-box"><h2>' + E(c.get('title', '체크리스트')) + '</h2><ul class="guide-check">' + ''.join(
+        f'<li>{E(x)}</li>' for x in c.get('items', [])) + '</ul></div>'
+    h += '</div><div class="guide-faq"><h2>' + E(f.get('title', '자주 묻는 질문')) + '</h2>' + ''.join(
+        f'<details><summary>{E(i["q"])}</summary><p>{E(i["a"])}</p></details>' for i in f.get('items', [])) + '</div></section>'
+    ld = {'@context': 'https://schema.org', '@type': 'FAQPage', 'mainEntity': [
+        {'@type': 'Question', 'name': i['q'], 'acceptedAnswer': {'@type': 'Answer', 'text': i['a']}} for i in f.get('items', [])]}
+    return h, ld

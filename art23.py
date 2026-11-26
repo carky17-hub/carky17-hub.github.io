@@ -16,5 +16,7 @@ SCENES={
 # Hash only ASCII stable place ID: same variant in server and browser.
 def variant(pid):return sum(ord(c)*(i+1) for i,c in enumerate(str(pid)))%4
 BASE='<rect width="400" height="300" fill="var(--bg)"/><circle cx="200" cy="141" r="112" fill="var(--light)" opacity=".42"/><path d="M15 50h58m-29-29v58M330 210h45m-22-22v44" stroke="var(--paper)" stroke-width="2" opacity=".65"/><path d="M0 250H400V300H0Z" fill="var(--bg)"/>'
+ART_IMG={'카페':'cafe','애견카페':'cafe','식당':'restaurant','숙소':'lodging','여행지':'travel','놀이터':'playground','동물병원':'vet','미용':'grooming','호텔·유치원':'daycare'}
 def art(p,kind):
+ if kind in ART_IMG:return f'<div class="eg-art eg-art23 eg-art-img" data-kind="{E(kind)}"><img src="/art/{ART_IMG[kind]}.png" alt="" width="400" height="300" loading="lazy" decoding="async"><span class="eg-art-caption">{E(kind)} · 일러스트</span></div>'
  return f'<div class="eg-art eg-art23" data-kind="{E(kind)}" data-variant="{variant(p["id"])}"><svg viewBox="0 0 400 300" aria-hidden="true">{BASE}{SCENES.get(kind,SCENES["여행지"])}</svg><span class="eg-art-caption">{E(kind)} · 일러스트</span><span class="eg-art-note">사진 준비 중</span></div>'
