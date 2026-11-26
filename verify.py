@@ -5,7 +5,9 @@ load=lambda p:json.loads(p.read_text(encoding='utf-8'))
 from source_data import load_source
 from v13 import funeral_places,funeral_seo,match,extra_paths,is_funeral,neutral_key,reject_funeral_overlays
 # v1.3.2 neutral funeral verification
-a=load_source(src/'places-all.json'); a+=funeral_places(src,a); from tourapi import integrate as tour_integrate; tour_integrate(src,a); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
+from category32 import apply_overrides as category32_apply
+from regions32 import intro as region32_intro
+a=load_source(src/'places-all.json'); category32_report=category32_apply(a,src); a+=funeral_places(src,a); from tourapi import integrate as tour_integrate; tour_integrate(src,a); seo=load_source(src/'seo-pages.json'); merged=load_source(src/'merged-ids.json'); m=load(S/'data/manifest.json'); report=load(S/'data/build-report.json'); 
 from settings import ENABLE_KAKAO_LINKS,ENABLE_ADFIT,RELEASE_MODE,FORMS_LIVE,FORM_ENDPOINT
 from region_rules import dong_key,display_services,seo_pages,recount,indexable
 seo,alias_redirects=seo_pages(seo+funeral_seo(a))
@@ -37,6 +39,7 @@ for sh in m['shards']:
    actual[v]+=1
    for sig,d in {(None,None),(p['sigungu'],None),(p['sigungu'],dong_key(p['sido'],p['sigungu'],p['dongKey']))}:idx[v,p['sido'],sig,d].add(i)
 assert seen==by and actual==report['serviceCounts']
+assert report['categoryOverrides']==category32_report
 lookup={k:v for f in (S/'data/lookup').glob('*.json') for k,v in load(f).items()}; assert set(lookup)==set(by)
 for sh in m['shards']:
  assert all(lookup[p['id']]==sh['key'] for p in load(S/sh['full']))
@@ -82,6 +85,7 @@ for item in seo:
   assert html.escape(q['name'],quote=True) in h and html.escape(q['acceptedAnswer']['text'],quote=True) in h
  related=re.search(r'<section class="panel related-regions".*?</section>',h)[0];targets=[html.unescape(x) for x in re.findall(r'<a href="([^"]+)"',related)];assert set(targets)<=regionpaths and len(targets)==len(set(targets)) and path not in targets;related_count+=len(targets)
  assert 'region-summary' in h
+ if item['category'] not in ('funeral','ossuary'):assert html.escape(region32_intro(item,[by[i] for i in ids]),quote=True) in h
 ads,premium=schedules(snapshot,areas,set(by))
 for path,rs in ads.items():
  h=(S/path.lstrip('/')/'index.html').read_text();assert h.count('data-slot=')==len(rs)

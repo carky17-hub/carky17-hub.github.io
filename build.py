@@ -17,6 +17,10 @@ from cards22 import annotate as own_ratings, card as card22, rating as rating22,
 from v13 import funeral_places,funeral_seo,match,extra_paths,content,detail_content,publish_pages,funeral_cta,funeral_actions,fee_notice,is_funeral,neutral_key,reject_funeral_overlays,ROLE,DISCLOSURE,PRIVACY_TEXT
 # v1.3.2 neutral funeral integration
 A=load_source(SRC/'places-all.json');
+from category32 import apply_overrides as category32_apply
+from regions32 import intro as region32_intro, Nearby as Region32Nearby
+CATEGORY32_REPORT=category32_apply(A,SRC)
+print('Category v3.2:',json.dumps(CATEGORY32_REPORT,ensure_ascii=False))
 A+=funeral_places(SRC,A)
 tour_audit=tour_integrate(SRC,A)
 assert all(p.get('geoSource') in (None,'public-data','소상공인시장진흥공단 상가(상권)정보 2026-09') and not p.get('kakaoPlaceId') and not p.get('kakaoMapUrl') and (not p.get('roadAddress') or p.get('geoSource')=='소상공인시장진흥공단 상가(상권)정보 2026-09') for p in A), 'Unexpected v7 coordinate/address provenance'
@@ -148,6 +152,7 @@ dump('data/search-compact.json',compact_index(search_index))
 byregion={(s['category'],s['sido'],s['sigungu'],s['filter']['dongKey']):(path,s['mainKeyword'],len(rows)) for s,path,rows,_,_ in pageinfo}
 byarea=collections.defaultdict(list)
 for (cat,si,gu,dong),item in byregion.items():byarea[si,gu,dong].append((cat,item))
+REGION32_NEARBY=Region32Nearby(A,pageinfo)
 def crumb(items):
  h='<nav class="breadcrumbs" aria-label="현재 위치"><ol>'+''.join(f'<li><a href="{E(path)}">{E(name)}</a></li>' if i<len(items)-1 and path else f'<li>{E(name)}</li>' if i<len(items)-1 else f'<li aria-current="page">{E(name)}</li>' for i,(name,path) in enumerate(items))+'</ol></nav>'
  ld={'@context':'https://schema.org','@type':'BreadcrumbList','itemListElement':[{'@type':'ListItem','position':i,'name':name,'item':url(path)} for i,(name,path) in enumerate([(name,path) for name,path in items if path],1)]}
@@ -168,6 +173,7 @@ def summary_faq(s,rows):
  faq=[(f'{kw} 목록에는 몇 곳이 있나요?',f'현재 데이터에서 해당 지역과 서비스에 일치하는 고유 업체는 {n:,}곳입니다.'),(f'{kw}에서 지도에 표시할 수 있는 곳은 몇 곳인가요?',f'정확 좌표가 있는 {exact:,}곳입니다. 나머지 {n-exact:,}곳은 목록에만 표시됩니다.')]
  if top:faq.append((f'{kw} 수록 업체가 가장 많은 지역은 어디인가요?',f'{top[0][0]}에 {top[0][1]:,}곳이 있습니다. 현재 수록된 데이터 기준입니다.'))
  else:faq.append((f'{kw} 중 등록업체는 몇 곳인가요?',f'식약처 공식 인증 배지 {official:,}곳, 등록업체 배지 {reg:,}곳입니다. 공공 목록 등재는 모든 동반 조건을 보증하지 않습니다.'))
+ if s['category'] not in ('funeral','ossuary'):summary=region32_intro(s,rows)
  h='<section class="panel region-summary"><h2>지역 데이터 요약</h2><p>'+E(summary)+'</p></section>'
  faqhtml='<section class="panel region-faq"><h2>자주 묻는 질문</h2>'+''.join(f'<h3>{E(q)}</h3><p>{E(a)}</p>' for q,a in faq)+'</section>'
  ld={'@context':'https://schema.org','@type':'FAQPage','mainEntity':[{'@type':'Question','name':q,'acceptedAnswer':{'@type':'Answer','text':a}} for q,a in faq]}
@@ -197,9 +203,10 @@ for s,path,rows,title,desc in pageinfo:
  h+=faqhtml
  parents=[byregion[k] for k in [(cat,si,None,None),(cat,si,gu,None)] if k in byregion and byregion[k][0]!=path];parents=list(dict.fromkeys(parents))
  siblings=[v for v in child.get((cat,si,gu),[]) if v[0]!=path] if dong else []
- others=[v for c,v in byarea[si,gu,dong] if c!=cat]
+ others=[v for c,v in byarea[si,gu,dong] if c!=cat and v[0] in REGION32_NEARBY.valid]
+ if cat not in ('funeral','ossuary'):siblings=REGION32_NEARBY.links(s,path)
  h+='<section class="panel related-regions" aria-label="관련 지역 및 서비스">'
- for label,items in [('상위 지역',parents),('같은 시군구의 다른 동',siblings),('같은 지역의 다른 서비스',others)]:
+ for label,items in [('상위 지역',parents),(('같은 시군구의 다른 동' if cat in ('funeral','ossuary') else '인근 지역 같은 업종 (등록 장소 좌표 기준)'),siblings),('같은 지역 다른 업종',others)]:
   if items:h+='<h2>'+label+'</h2>'+links(sorted(items,key=lambda v:(v[1],v[0])))
  h+='</section>';page(path,title,desc,h,[listld(rows),crumbld,faqld],not indexable(s,n))
 
@@ -377,4 +384,4 @@ prepare_manifest(ROOT,SITE)
 write('.nojekyll','')
 dump('release.json',{'version':ASSET_HASH})
 assert len(sitemap)<=50000, 'Sitemap URL limit exceeded; split sitemap before deploying.'
-write('sitemap.xml',sitemap_xml(sitemap,url,SITE,A,image_candidates(A,pageinfo)));assert (SITE/'sitemap.xml').stat().st_size<=52428800;write('robots.txt',('User-agent: *\nDisallow: /\n' if PREVIEW else 'User-agent: *\nAllow: /\nDisallow: /data/\n')+'Sitemap: '+url('/sitemap.xml')+'\n');dump('data/build-report.json',{'total':len(A),'redirects':len(redirects),'badgeCounts':dict(collections.Counter(BADGES[tier(p)][0] for p in A)),'serviceCounts':dict(collections.Counter(v for p in A for v in display_services(p))), 'travelExcluded':sum('여행지' in p['services'] and '여행지' not in display_services(p) for p in A), 'aliasRedirects':ALIAS_REDIRECTS,'mapped':sum(map(coord,A)),'approx':sum(map(approx,A)),'verified':sum(p['verified'] is True for p in A),'seoPages':len(SEO),'empty':sum(r['actualCount']==0 for r in report),'noindexRegionCount':sum(not r['indexable'] for r in report),'mismatch':0,'adjustedRegionCounts':sum(r['adjusted'] for r in report),'sitemapUrls':len(sitemap),'shards':len(shards),'regionCounts':report,'siteUrl':BASE,'preview':PREVIEW,'formsEnabled':ENABLE_FORMS,'admin':{'mode':admin_snapshot['mode'],'asOf':admin_snapshot['as_of'],'corrections':correction_count,'adBookings':sum(map(len,admin_ads.values())),'activeAds':sum(active(r,admin_snapshot['as_of']) for rows in admin_ads.values() for r in rows),'premiumBookings':sum(map(len,admin_premium.values())),'activePremium':sum(active(r,admin_snapshot['as_of']) for rows in admin_premium.values() for r in rows)},'roadAddressCount':sum(bool(p.get('roadAddress')) for p in A),'kakaoIdCount':sum(bool(p.get('kakaoPlaceId')) for p in A)});print('build complete',len(A),len(SEO),len(sitemap),'empty regions',sum(not r['indexable'] for r in report),'recounted regions',sum(r['sourceCount']!=r['actualCount'] for r in report))
+write('sitemap.xml',sitemap_xml(sitemap,url,SITE,A,image_candidates(A,pageinfo)));assert (SITE/'sitemap.xml').stat().st_size<=52428800;write('robots.txt',('User-agent: *\nDisallow: /\n' if PREVIEW else 'User-agent: *\nAllow: /\nDisallow: /data/\n')+'Sitemap: '+url('/sitemap.xml')+'\n');dump('data/build-report.json',{'categoryOverrides':CATEGORY32_REPORT,'total':len(A),'redirects':len(redirects),'badgeCounts':dict(collections.Counter(BADGES[tier(p)][0] for p in A)),'serviceCounts':dict(collections.Counter(v for p in A for v in display_services(p))), 'travelExcluded':sum('여행지' in p['services'] and '여행지' not in display_services(p) for p in A), 'aliasRedirects':ALIAS_REDIRECTS,'mapped':sum(map(coord,A)),'approx':sum(map(approx,A)),'verified':sum(p['verified'] is True for p in A),'seoPages':len(SEO),'empty':sum(r['actualCount']==0 for r in report),'noindexRegionCount':sum(not r['indexable'] for r in report),'mismatch':0,'adjustedRegionCounts':sum(r['adjusted'] for r in report),'sitemapUrls':len(sitemap),'shards':len(shards),'regionCounts':report,'siteUrl':BASE,'preview':PREVIEW,'formsEnabled':ENABLE_FORMS,'admin':{'mode':admin_snapshot['mode'],'asOf':admin_snapshot['as_of'],'corrections':correction_count,'adBookings':sum(map(len,admin_ads.values())),'activeAds':sum(active(r,admin_snapshot['as_of']) for rows in admin_ads.values() for r in rows),'premiumBookings':sum(map(len,admin_premium.values())),'activePremium':sum(active(r,admin_snapshot['as_of']) for rows in admin_premium.values() for r in rows)},'roadAddressCount':sum(bool(p.get('roadAddress')) for p in A),'kakaoIdCount':sum(bool(p.get('kakaoPlaceId')) for p in A)});print('build complete',len(A),len(SEO),len(sitemap),'empty regions',sum(not r['indexable'] for r in report),'recounted regions',sum(r['sourceCount']!=r['actualCount'] for r in report))
