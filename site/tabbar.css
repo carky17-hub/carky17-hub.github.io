@@ -1,0 +1,20 @@
+/* v3.3 standalone mobile tab bar. Existing desktop and map layout stay intact. */
+.eg33-tabbar{display:none}
+.eg33-empty-options{margin:16px auto 0;max-width:560px;text-align:left;color:#334155}
+.eg33-empty-options p{margin:8px 0;color:#526075;font-size:13px;line-height:1.55}
+.eg33-empty-options h3{font-size:14px;margin:15px 0 8px;color:#26352e}
+.eg33-empty-chips{display:flex;flex-wrap:wrap;gap:7px}
+.eg33-empty-chips a{display:inline-flex;align-items:center;min-height:44px;padding:7px 12px;border:1px solid #e5e7eb;border-radius:24px;background:#fff;color:#334155;font-size:13px;font-weight:700;text-decoration:none;max-width:100%;overflow-wrap:anywhere}
+.eg33-widen{display:block;width:100%;min-height:46px;margin:10px 0;border:1px solid #F26B1D;border-radius:12px;background:#fff3e8;color:#a43b0b;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
+.eg33-widen:disabled{color:#526075;background:#f5f6f5;border-color:#ddd;cursor:default}
+@media(max-width:767px){
+ body.eg33-tab-ready{--eg33-tab-height:calc(64px + env(safe-area-inset-bottom,0px));padding-bottom:calc(var(--eg33-tab-height) + var(--eg33-actions-height,0px) + 12px)!important}
+ body.eg33-tab-ready .mobile-nav{display:none!important}
+ .eg33-tabbar{position:fixed;inset:auto 0 0;z-index:110;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:var(--eg33-tab-height);box-sizing:border-box;padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e5e7eb;box-shadow:0 -4px 20px #25352912;isolation:isolate}
+ .eg33-tabbar a,.eg33-tabbar button{appearance:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:44px;background:transparent;border:0;border-radius:12px;color:#4b5a54;font-family:inherit;font-weight:750;font-size:11px;line-height:1.25;text-decoration:none;padding:3px 1px;cursor:pointer;white-space:nowrap}
+ .eg33-tabbar .eg33-active{color:#a83d0b;background:#fff1e6}.eg33-tabbar button:disabled{opacity:.55;cursor:default}.eg33-tabbar :focus-visible,.eg33-empty-options :focus-visible{outline:2px solid #ad450a;outline-offset:-3px}
+ body.eg33-tab-ready.eg33-has-actions .m-actions{bottom:var(--eg33-tab-height)!important;padding-bottom:10px!important}
+ body.eg33-map-full .eg33-tabbar,body.eg-map-full .eg33-tabbar,body.eg33-keyboard .eg33-tabbar{visibility:hidden;pointer-events:none}
+ body.eg33-keyboard.eg33-has-actions .m-actions{visibility:hidden;pointer-events:none}
+ html:has(body.eg33-tab-ready){scroll-padding-bottom:calc(64px + env(safe-area-inset-bottom,0px) + 12px)}
+}

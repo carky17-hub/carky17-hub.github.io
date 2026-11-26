@@ -13,6 +13,31 @@
  input.addEventListener('input',schedule);input.addEventListener('focus',()=>{if(input.value)schedule()});input.addEventListener('compositionstart',()=>{composing=true;close()});input.addEventListener('compositionend',()=>{composing=false;schedule()});
  input.addEventListener('keydown',e=>{if(e.isComposing||composing)return;if(e.key==='Escape'){close();return}if(e.key==='ArrowDown'&&!list.hidden){e.preventDefault();setActive(active+1)}else if(e.key==='ArrowUp'&&!list.hidden){e.preventDefault();setActive(active<0?options.length-1:active-1)}else if(e.key==='Enter'&&!list.hidden&&active>=0){e.preventDefault();window.EGTrack?.('suggestion');location.href=options[active].path}});
  list.addEventListener('pointerdown',e=>{if(e.target.closest('a'))e.preventDefault()});document.addEventListener('pointerdown',e=>{if(!form.contains(e.target)&&!list.contains(e.target))close()});input.addEventListener('blur',()=>setTimeout(()=>{if(!list.contains(document.activeElement))close()},130));form.addEventListener('submit',close);
- // Called by the existing renderer only when its actual filtered result set is empty.
- window.EGSearchEmpty=async(target,raw)=>{if(!target||!EGSearch.norm(raw)||target.dataset.pending)return;target.dataset.pending='1';try{const matches=await suggestions(raw,6);if(!target.isConnected||document.getElementById('query').value!==raw)return;if(matches.length){const title=document.createElement('b');title.textContent='다른 지역·조건 또는 유사한 검색어';const note=document.createElement('p');note.textContent='아래 제안은 현재 필터를 적용하지 않은 전국 목록입니다.';const links=document.createElement('div');links.className='eg-empty-links';links.append(...matches.map(v=>anchor(v)));target.append(title,note,links)}}catch{}};
+ // v3.3: keep existing query and active service/condition filters when widening.
+ function emptyChips(box,label,items){if(!items.length)return;const h=document.createElement('h3');h.textContent=label;const links=document.createElement('div');links.className='eg33-empty-chips';for(const item of items){if(!/^\/(?!\/)[^?#]*\/$/.test(item.path))continue;const a=document.createElement('a');a.href=item.path;a.textContent=item.title;links.append(a)}if(links.childElementCount)box.append(h,links)}
+ window.EGSearchEmpty=async(target,raw)=>{
+  if(!target||target.dataset.eg33||location.hash==='#saved')return;target.dataset.eg33='1';raw=String(raw||'');
+  const region=document.getElementById('region');const box=document.createElement('div');box.className='eg33-empty-options';
+  const b=document.createElement('button');b.type='button';b.className='eg33-widen';b.textContent='전국으로 넓혀 보기';
+  b.addEventListener('click',()=>{if(!region)return;region.value='';region.dispatchEvent(new Event('change',{bubbles:true}));});
+  const params33=new URLSearchParams(location.search);const restricted=!!region?.value||['sigungu','dong','dongKey'].some(k=>params33.has(k))||document.querySelector('.nearby-bar [data-nearby][aria-pressed="true"]')||document.getElementById('modeLabel')?.textContent.includes('현재 지도 영역');
+  if(region){b.disabled=!restricted;box.append(b)}const p=document.createElement('p');p.textContent=(restricted?'검색어와 업종·조건을 유지하고 지역 범위를 넓혀요.':'이미 전국을 검색하고 있어요. 다른 조건이나 아래 장소 목록을 확인해 보세요.')+' 아래 제안은 현재 필터와 별개의 지역 목록입니다.';box.append(p);target.append(box);
+  try{
+   const matches=EGSearch.norm(raw).length>=2?await suggestions(raw,16):[];
+   if(!target.isConnected||input.value!==raw)return;
+   const index=await getIndex();if(!target.isConnected||input.value!==raw)return;
+   const regionMatches=matches.filter(x=>x.kind==='region');emptyChips(box,'비슷한 지역·검색어',regionMatches.slice(0,5));
+   const selected=[...document.querySelectorAll('#cats [aria-pressed="true"]')].map(e=>e.dataset.cat).filter(c=>c&&c!=='전체');
+   const rows=(index.regions||[]).filter(r=>r[6]>0&&r[5]&&r[5]!=='장례·추모'&&r[5]!=='봉안');
+   const ref=regionMatches.map(x=>rows.find(r=>r[1]===x.path)).find(Boolean);
+   const current=region?.value||'';const area=ref||(current?rows.find(r=>r[2]===current&&!r[3]&&!r[4]):null);
+   let candidates=area?rows.filter(r=>r[2]===area[2]&&r[3]===area[3]&&r[4]===area[4]):rows.filter(r=>!r[3]&&!r[4]);
+   if(!candidates.length&&current)candidates=rows.filter(r=>r[2]===current&&!r[3]&&!r[4]);
+   const seen=new Set(regionMatches.map(x=>x.path));candidates=candidates.filter(r=>!seen.has(r[1])&&!selected.includes(r[5])).sort((a,b)=>b[6]-a[6]||String(a[0]).localeCompare(String(b[0]),'ko'));
+   const byService=new Set();const chips=[];for(const r of candidates){const svc=Array.isArray(r[5])?r[5].join('·'):r[5];if(byService.has(svc))continue;byService.add(svc);chips.push({title:/[\d,]+곳$/.test(r[0])?r[0]:r[0]+' · '+r[6]+'곳',path:r[1]});if(chips.length===5)break}emptyChips(box,area?'다른 업종 둘러보기':'다른 지역·업종 둘러보기',chips);
+   emptyChips(box,'비슷한 업체명',matches.filter(x=>x.kind==='place').slice(0,3));
+  }catch{/* Nationwide button remains usable if the suggestion index fails. */}
+ };
+ // The old renderer calls EGSearchEmpty only for non-empty queries; also handle filter-only results.
+ const emptyCards=document.getElementById('cards');if(emptyCards){const scanEmpty=()=>{const t=emptyCards.querySelector('#searchEmpty');if(t)window.EGSearchEmpty(t,input.value)};new MutationObserver(scanEmpty).observe(emptyCards,{childList:true});scanEmpty()}
 })();
