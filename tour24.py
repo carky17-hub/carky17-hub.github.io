@@ -114,7 +114,7 @@ def detail_html(p,labels,source):
     keys=['acmpyTypeCd','acmpyPsblCpam','acmpyNeedMtr','relaAcdntRiskMtr','etcAcmpyInfo']+[k for k in labels if k not in ('acmpyTypeCd','acmpyPsblCpam','acmpyNeedMtr','relaAcdntRiskMtr','etcAcmpyInfo')]
     known=[k for k in keys if str(pet.get(k) or '').strip() not in ('','-','미확인','정보 없음')]
     photos=list(p.get('tourPhotos') or [])[:5]
-    h='<section class="panel tour-info" id="tour-pet-info"><h2>한국관광공사 동반 여행 정보</h2><p class="muted">한국관광공사 등록 · 자료 조회일 '+E(t.get('checkedOn'))+' · <a href="'+E(source)+'">원자료</a> · 방문 전 확인해 주세요.</p>'
+    h='<section class="panel tour-info" id="tour-pet-info"><h2>한국관광공사 동반 여행 정보</h2><p class="muted">공공데이터 · 자료 조회일 '+E(t.get('checkedOn'))+' · <a href="'+E(source)+'">원자료</a> · 방문 전 확인해 주세요.</p>'
     if known:h+='<dl class="tour-pet-facts">'+''.join('<dt>'+E(labels[k])+'</dt><dd>'+E(pet[k])+'</dd>' for k in known if k in labels)+'</dl>'
     else:h+='<p>상세 동반 조건은 아직 수집되지 않았습니다. 방문 전 동반 가능 구역, 이동장·목줄 조건을 직접 확인해 주세요.</p>'
     if str(p.get('subType'))=='쇼핑·복합몰':h+='<p class="notice">복합몰 공용부와 개별 매장의 반려동물 동반 정책은 다를 수 있습니다.</p>'

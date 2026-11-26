@@ -51,7 +51,7 @@ def cover(p):
   return f'<div class="eg-card-media"><div class="eg-photo-slot {"contain" if lic else ""}">{art}<img src="{E(photo["src"])}" alt="{E(photo.get("caption"))}" width="400" height="300" loading="lazy" decoding="async" fetchpriority="auto" data-card-photo></div><small class="eg-card-credit">{E(credit)}</small></div>'
  return '<div class="eg-card-media">'+art+'</div>'
 def card(p,key='',recommended=False):
- b='관광공사 등록' if p.get('tourism') else '승인 사진' if p.get('ownerPhoto') else '';b=b or ('사진 추천' if recommended else '')
+ b='승인 사진' if p.get('ownerPhoto') else '';b=b or ('사진 추천' if recommended else '')
  attrs=' · '.join(t for k,t in [('indoor','실내 동반'),('petSizeLarge','대형견'),('parking','주차')] if p.get(k) is True)
  return f'<article class="card eg-place-card"><a href="/place/{E(p["id"])}/">{cover(p)}'+(f'<span class="eg-photo-badge">{E(b)}</span>' if b else '')+f'<div class="cardbody"><div class="name">{E(p["name"])}</div><div class="muted">{E(p.get("sigungu") or p.get("sido") or "지역 미확인")} · {E(p["category"])}</div>{status(p)}'+(f'<div class="eg-card-attrs">{E(attrs)}</div>' if attrs else '')+rating(p)+'</div></a><button type="button" class="save" data-save="'+E(p['id'])+'" data-key="'+E(key)+'" aria-label="장소 저장" aria-pressed="false">♡</button></article>'
 def curated(places,keys):
