@@ -111,23 +111,26 @@ def home_section(items, E):
         cr = '<i class="theme-credit">사진 한국관광공사</i>' if ph else ''
         return f'<a class="theme-card" href="{E(p)}">{img}{cr}<b>{E(t)}</b><small>전국 {n:,}곳</small></a>'
     cards = ''.join(one(p, t, n, ph) for p, t, icon, n, ph in items)
-    return ('<section class="section theme-section"><div class="head"><h2>테마별 모아보기</h2>'
+    return ('<section class="section theme-section" id="themes"><div class="head"><h2>테마별 모아보기</h2>'
             '<span class="muted">조건으로 바로 찾기</span></div><div class="theme-grid">' + cards + '</div></section>')
 
 
 def home_guide(copy, E):
-    """Static info block for the home page (usage, condition guide, checklist, FAQ)."""
+    """Compact visual guide block: 3 steps, condition badges, checklist, FAQ."""
     if not copy:
         return '', None
-    u, g, c, f = copy.get('usage', {}), copy.get('condition_guide', {}), copy.get('checklist', {}), copy.get('faq', {})
-    h = '<section class="section home-guide"><div class="guide-grid">'
-    h += '<div class="guide-box"><h2>' + E(u.get('title', '사용법')) + '</h2><ol class="guide-steps">' + ''.join(
-        f'<li><b>{E(s["title"])}</b><span>{E(s["text"])}</span></li>' for s in u.get('steps', [])) + '</ol></div>'
-    h += '<div class="guide-box"><h2>' + E(g.get('title', '동반 조건 보는 법')) + '</h2><dl class="guide-terms">' + ''.join(
-        f'<div><dt>{E(i["label"])}</dt><dd>{E(i["text"])}</dd></div>' for i in g.get('items', [])) + '</dl></div>'
-    h += '<div class="guide-box"><h2>' + E(c.get('title', '체크리스트')) + '</h2><ul class="guide-check">' + ''.join(
-        f'<li>{E(x)}</li>' for x in c.get('items', [])) + '</ul></div>'
-    h += '</div><div class="guide-faq"><h2>' + E(f.get('title', '자주 묻는 질문')) + '</h2>' + ''.join(
+    f = copy.get('faq', {})
+    steps = [('검색', '지역·업종·장소 이름으로 찾기'), ('조건 확인', '실내·크기·목줄 표시 보기'), ('방문', '저장하고 출발 전 전화 확인')]
+    terms = [('실내만', '실내에서만 동반'), ('실외만', '야외·테라스만'), ('일부 구역', '정해진 공간만'), ('대형견 불가', '크기 제한 있음'),
+             ('목줄', '리드줄 필수'), ('입마개', '착용 조건 있음'), ('이동장', '케이지·가방 필요'), ('미확인', '정보 없음, 문의 필요')]
+    checks = ['영업시간·동반 가능 여부 전화 확인', '실내·실외 이용 구역', '크기·무게·마릿수 제한', '목줄·이동장 등 준비물', '배변봉투·물', '예약·추가요금·주차']
+    h = '<section class="section home-guide"><div class="head"><h2>처음이라면 이렇게 써보세요</h2></div>'
+    h += '<ol class="g-steps">' + ''.join(f'<li><i>{i}</i><b>{E(a)}</b><span>{E(b)}</span></li>' for i, (a, b) in enumerate(steps, 1)) + '</ol>'
+    h += '<div class="g-row"><div class="g-card"><h3>카드 표시 읽는 법</h3><ul class="g-terms">' + ''.join(
+        f'<li><em class="g-badge{" g-muted" if a == "미확인" else ""}">{E(a)}</em><span>{E(b)}</span></li>' for a, b in terms) + '</ul></div>'
+    h += '<div class="g-card"><h3>외출 전 체크리스트</h3><ul class="g-check">' + ''.join(
+        f'<li><label><input type="checkbox"><span>{E(x)}</span></label></li>' for x in checks) + '</ul></div></div>'
+    h += '<div class="guide-faq"><h2>' + E(f.get('title', '자주 묻는 질문')) + '</h2>' + ''.join(
         f'<details><summary>{E(i["q"])}</summary><p>{E(i["a"])}</p></details>' for i in f.get('items', [])) + '</div></section>'
     ld = {'@context': 'https://schema.org', '@type': 'FAQPage', 'mainEntity': [
         {'@type': 'Question', 'name': i['q'], 'acceptedAnswer': {'@type': 'Answer', 'text': i['a']}} for i in f.get('items', [])]}
