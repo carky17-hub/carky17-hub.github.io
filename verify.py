@@ -48,6 +48,7 @@ ld_re=re.compile(r'<script type="application/ld\+json">(.*?)</script>',re.S)
 row_re=re.compile(r'<li class="seo-row"><a href="/place/([pf]\d+)/"')
 expected={'/','/regions/','/owner/','/privacy/','/terms/','/sources/','/owner/pricing/','/owner/terms-ads/','/information-score/','/naver-search/','/compare/','/recommendation-policy/'}
 expected.update(extra_paths(src))
+expected.update(json.loads((S/'data/build-report.json').read_text(encoding='utf-8'))['themePaths'])
 regionpaths={x['path'].rstrip('/')+'/' for x in seo}
 meta_keys=['og:title','og:description','og:url','og:image','og:type','twitter:card','naver-site-verification','google-site-verification']
 def valid_meta(h):
