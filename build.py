@@ -126,7 +126,11 @@ for p in A:
 dump('data/nearby-index.json',{'version':1,'groups':sorted(near_groups.items())})
 HOME_FIELDS=tuple(fields)
 HOME_KEYS={pid:key for g in lookup.values() for pid,key in g.items()}
-dump('data/manifest.json',dict(version=230,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
+_areas=collections.defaultdict(lambda:collections.defaultdict(collections.Counter))
+for _p in A:
+ if _p.get('sido') and _p.get('sigungu') and not _p['id'].startswith('f'):_areas[_p['sido']][_p['sigungu']][dong_key(_p['sido'],_p['sigungu'],_p.get('dongKey')) or '']+=1
+AREAS={si:{gu:sorted([d for d,n in c.items() if d and n>=2]) for gu,c in sorted(gus.items())} for si,gus in _areas.items()}
+dump('data/manifest.json',dict(version=230,areas=AREAS,dongGroups=GROUPS,total=len(A),mapped=sum(map(coord,A)),verified=sum(p['verified'] is True for p in A),regions=regions,categories=cats,fields=fields,shards=shards))
 # static region filters; only clear administrative token prefixes, no fuzzy matching
 category={'grooming':'미용','hotel':'호텔·유치원','hospital':'동물병원','cafe':'카페','restaurant':'식당','travel':'여행지','stay':'숙소','playground':'놀이터','ossuary':'장례·추모','funeral':'장례·추모'}
 idx=collections.defaultdict(list)
