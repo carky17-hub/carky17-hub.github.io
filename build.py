@@ -1,5 +1,6 @@
 import json, pathlib, collections, re, html, os, math, urllib.parse, shutil, hashlib
 from source_data import load_source
+from qa30_meta import place_meta as qa30_place_meta
 from search_routing import encode as route_encode
 from images26 import carousel as photo_carousel, prioritize as prioritize_photos, sitemap_xml, image_candidates
 from xml.sax.saxutils import escape as xml_escape
@@ -221,8 +222,9 @@ def unknown_summary(p,fields):
  labels=[k for k,v in fields if not known(p.get(v))];labels=list(dict.fromkeys(labels))
  return ('<details class="panel unknown-summary"><summary>미확인 정보 '+str(len(labels))+'개 · 방문 전 확인</summary><p>'+E(' · '.join(labels))+'</p><p>미확인은 가능 또는 불가를 의미하지 않습니다.</p></details>') if labels else ''
 reglookup={(s['category'],s['sido'],s['sigungu'],s['filter']['dongKey']):path for s,path,rows,_,_ in pageinfo if rows};inv={v:k for k,v in category.items()}
+QA30_PLACE_META=qa30_place_meta(A)
 for p in A:
- path=placepath(p);sitemap.append(path);name=p['name'];address=p.get('roadAddress') or p.get('address');area=' '.join(filter(None,[p['sido'],p['sigungu'],p['dong']]));title=f'{name} · {services(p)} | 어디가개';desc=f'{name}의 {area or "지역 미확인"} {services(p)} 정보. 주소, 영업시간, 확인된 반려동물 이용 조건을 살펴보세요.';schema={'@context':'https://schema.org','@type':{'동물병원':'VeterinaryCare','식당':'Restaurant','카페':'CafeOrCoffeeShop','애견카페':'CafeOrCoffeeShop','숙소':'LodgingBusiness','여행지':'TouristAttraction'}.get(p['category'],'LocalBusiness'),'name':name,'url':url(path),'description':desc,'makesOffer':[{'@type':'Offer','itemOffered':{'@type':'Service','name':v}} for v in p['services']]}
+ path=placepath(p);sitemap.append(path);name=p['name'];address=p.get('roadAddress') or p.get('address');area=' '.join(filter(None,[p['sido'],p['sigungu'],p['dong']]));title,desc=QA30_PLACE_META[p['id']];schema={'@context':'https://schema.org','@type':{'동물병원':'VeterinaryCare','식당':'Restaurant','카페':'CafeOrCoffeeShop','애견카페':'CafeOrCoffeeShop','숙소':'LodgingBusiness','여행지':'TouristAttraction'}.get(p['category'],'LocalBusiness'),'name':name,'url':url(path),'description':desc,'makesOffer':[{'@type':'Offer','itemOffered':{'@type':'Service','name':v}} for v in p['services']]}
  if schema['@type']=='TouristAttraction':schema.pop('makesOffer');schema['additionalProperty']=[{'@type':'PropertyValue','name':'서비스','value':v} for v in p['services']]
  if address:schema['address']={'@type':'PostalAddress','streetAddress':address,'addressCountry':'KR'}
  if p.get('phone'):schema['telephone']=p['phone']
