@@ -51,7 +51,7 @@ function status(p,d){const now=kstNow(d),dow=now.getUTCDay(),cur=now.getUTCHours
  if(cur<s)return {state:'before',text:'영업 전 · '+hm(s)+' 오픈'};
  return {state:'closed',text:'영업 종료'}}
 function pill(p){const s=status(p);return s.text?`<span class="open-pill ${s.state}" title="등록된 운영시간 기준 · 방문 전 확인">${s.text}</span>`:''}
-function fill(root){(root||document).querySelectorAll('[data-hours],[data-closed]').forEach(el=>{const s=status({hours:el.dataset.hours,closedDays:el.dataset.closed});el.className='open-pill '+s.state;el.textContent=s.text||'운영시간 확인 필요';el.title='등록된 운영시간 기준 · 방문 전 확인';})}
+function fill(root){(root||document).querySelectorAll('[data-hours],[data-closed]').forEach(el=>{const s=status({hours:el.dataset.hours,closedDays:el.dataset.closed});el.className='open-pill '+s.state;el.textContent=s.text||(el.dataset.hours?(/하절기|동절기|\d+\s*월/.test(el.dataset.hours)?'계절별 운영 · 아래 시간 참고':'운영시간 아래 참고'):'운영시간 확인 필요');el.title='등록된 운영시간 기준 · 방문 전 확인';})}
 window.EGHours={status,pill,fill,parseHours,holidays:HOLIDAYS};
 if(document.readyState!=='loading')fill();else document.addEventListener('DOMContentLoaded',()=>fill());
 })();
