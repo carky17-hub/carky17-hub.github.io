@@ -5,7 +5,7 @@ const icons={'전체':'🐾','카페':'☕','식당':'🍽️','애견카페':'�
 const flags={open:'지금 영업 중',verified:'식약처 공식 인증',large:'반려견 크기 정보 있음',indoor:'실내 동반',outdoor:'실외 동반',parking:'주차'};
 const params=new URLSearchParams(location.search);let multiService=params.getAll('service').length>1?params.getAll('service'):[];let areaSig=params.get('sigungu')||'',areaDong=params.get('dongKey')||params.get('dong')||'';const normDong=v=>String(v||'').split(' ')[0].replace(/(동)\d+가$/,'$1').replace(/\d+동$/,'동');let regionManual=params.has('sido'),manifest,cat=multiService.length?'전체':params.get('service')||params.get('category')||'전체',region=params.has('sido')?params.get('sido'):'서울특별시',selected=new Set(),onlySaved=false,rows=[],page=1,mode=params.get('view')==='map'?'map':'list',seq=0,routeSeq=0;
 let saved={};try{const s=JSON.parse(localStorage.getItem('eg-v4-saved')||localStorage.getItem('eg-v3-saved')||'{}');if(s&&typeof s==='object'&&!Array.isArray(s))saved=s}catch{}
-const cache=new Map(), MAX_CACHE=48, PAGE_SIZE=12;
+const cache=new Map(), MAX_CACHE=48, PAGE_SIZE=20;
 /* v1.4 local-only proximity */
 let bootInfo=null,initialRoute=true;
 let nearby=null,nearRequest=0,nearPending=false,radius=0,folderFilter='all',viewportBounds=null,activeRadius=0,preNearby=null;
