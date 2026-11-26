@@ -19,5 +19,19 @@
   "reason": "매장 인스타 게시물 0개·'다음에 다시 만나요' (영업 종료 추정)",
   "evidence": "https://www.instagram.com/100caudalie/",
   "checkedOn": "2026-11-26"
+ },
+ {
+  "id": "p05528",
+  "name": "딩가 케이크",
+  "reason": "인스타그램 소개에 2023.07.10 영업종료",
+  "evidence": "https://www.instagram.com/dingacakehouse/",
+  "checkedOn": "2026-11-26"
+ },
+ {
+  "id": "p05583",
+  "name": "라딧프로젝트 카페",
+  "reason": "인스타그램 소개에 마지막 프로젝트 마감",
+  "evidence": "https://www.instagram.com/ladit_project/",
+  "checkedOn": "2026-11-26"
  }
 ]
