@@ -96,7 +96,9 @@ def badge(p):
 def placepath(p):return '/place/'+p['id']+'/'
 def regionpath(s):return s['path'].rstrip('/')+'/'
 def services(p):return ' · '.join(p['services'])
-def row(p):return f'<li class="seo-row"><a href="{E(placepath(p))}"><strong>{E(p["name"])}</strong></a> {badge(p)} <span class="tag">{E(services(p))}</span><div class="muted">{E(p.get("address") or " ".join(filter(None,[p.get("sido"),p.get("sigungu"),p.get("dong")])) or "주소 미확인")} · {status(p)}</div>'+('<div class="hospital-badges">'+hospital_badges(p)+'</div>' if p.get("hours24Data") or p.get("nightEmergencySource") else "")+(f'<a class="btn hospital-call" href="tel:{E(telephone(p.get("phone")))}">📞 병원에 전화</a>' if "동물병원" in p["services"] and telephone(p.get("phone")) else "")+(f'<small>정보 충실도 {p["infoCompleteness"]}/100 · 리뷰는 상세에서 확인</small>' if p['infoCompleteness'] is not None else '')+'</li>'
+def rowflags(p):
+ return ' '.join(k for k,c in (('indoor',p.get('indoor') is True),('parking',p.get('parking') is True),('large',p.get('petSizeLarge') is True or '모두' in str(p.get('petSize') or '')),('hours',known(p.get('hours')))) if c)
+def row(p):return f'<li class="seo-row"><a href="{E(placepath(p))}" data-f="{rowflags(p)}"><strong>{E(p["name"])}</strong></a> {badge(p)} <span class="tag">{E(services(p))}</span><div class="muted">{E(p.get("address") or " ".join(filter(None,[p.get("sido"),p.get("sigungu"),p.get("dong")])) or "주소 미확인")} · {status(p)}</div>'+('<div class="hospital-badges">'+hospital_badges(p)+'</div>' if p.get("hours24Data") or p.get("nightEmergencySource") else "")+(f'<a class="btn hospital-call" href="tel:{E(telephone(p.get("phone")))}">📞 병원에 전화</a>' if "동물병원" in p["services"] and telephone(p.get("phone")) else "")+(f'<small>정보 충실도 {p["infoCompleteness"]}/100 · 리뷰는 상세에서 확인</small>' if p['infoCompleteness'] is not None else '')+'</li>'
 def listld(rows):return {'@context':'https://schema.org','@type':'ItemList','numberOfItems':len(rows),'itemListElement':[{'@type':'ListItem','position':i,'name':p['name'],'url':url(placepath(p))} for i,p in enumerate(rows,1)]}
 NAV='<header><div class="wrap nav"><a class="logo" href="/"><span class="mark"><img src="/brand.svg" width="36" height="36" alt=""></span>어디가개</a><nav class="links"><a href="/">홈</a><a href="/#explore">장소 찾기</a><a href="/#saved">저장한 장소</a><a href="/regions/">지역별 장소</a><a href="/owner/pricing/">사장님센터</a></nav><div class="right"><button class="btn install-top" data-install>앱 설치</button><a class="btn primary nav-cta" href="/owner/">입점 문의</a></div></div></header>'
 FOOT='<footer><div class="wrap"><b>어디가개</b> · 공공 목록 등재는 모든 동반 조건을 보증하지 않습니다. 방문 전 업체에 확인해 주세요.<br><a href="/privacy/">개인정보처리방침</a> · <a href="/terms/">이용약관</a> · <a href="/sources/">데이터 출처</a> · <a href="/?launch=1#launch">출시 알림</a> · <a href="/owner/pricing/">광고 상품</a> · <button class="text-button" data-install>앱 설치 안내</button></div></footer>'
@@ -193,6 +195,19 @@ if (admin_ads or admin_premium) and not ADS_POLICY_APPROVED:raise RuntimeError('
 closed={p['id'] for p in A if p.get('operating') is False}
 assert not (closed & (set(admin_premium)|{r['place_id'] for rs in admin_ads.values() for r in rs})), 'Closed place cannot advertise'
 assert not json.loads((SRC/'ads.json').read_text()), "Migrate legacy ads.json to the ads CSV; do not use both"
+def region_glance(s,rows,children):
+ n=len(rows);c=lambda f:sum(f in rowflags(p).split() for p in rows)
+ tiles=[('전체',n),('실내 동반',c('indoor')),('주차 가능',c('parking')),('대형견 가능',c('large')),('운영시간 정보',c('hours'))]
+ h='<section class="panel region-glance"><h2>한눈에 보기</h2><div class="glance-tiles">'+''.join(f'<div><b>{v:,}</b><span>{E(k)}</span></div>' for k,v in tiles)+'</div>'
+ top=sorted([x for x in children if x[2]],key=lambda x:-x[2])[:6]
+ if top:h+='<p class="glance-top"><span class="muted">장소 많은 곳</span> '+''.join(f'<a href="{E(p)}">{E(urllib.parse.unquote(p.rstrip("/").split("/")[-1]))} {n2:,}</a>' for p,t,n2 in top)+'</p>'
+ return h+'<p class="muted">미확인 정보는 수에 포함하지 않았어요. 방문 전 매장에 확인해 주세요.</p></section>'
+def list_chips(rows):
+ if len(rows)<12:return ''
+ return '<div class="list-chips" data-list-chips>'+''.join(f'<button type="button" data-chip="{k}"'+(' aria-pressed="true"' if k=='' else ' aria-pressed="false"')+f'>{E(t)}</button>' for k,t in (('', '전체'),('indoor','실내 동반'),('parking','주차'),('large','대형견'),('hours','운영시간 있음')))+'</div>'
+def other_sido(cat,si):
+ items=[byregion[k] for k in sorted(byregion,key=lambda k:tuple(str(x or '') for x in k)) if k[0]==cat and k[2] is None and k[3] is None and k[1] and k[1]!=si and byregion[k][2]]
+ return ('<section class="panel"><h2>다른 시·도 보기</h2>'+links(items)+'</section>') if items else ''
 for s,path,rows,title,desc in pageinfo:
  n=len(rows);kw=s['mainKeyword'];cat=s['category'];si=s['sido'];gu=s['sigungu'];dong=s['filter']['dongKey'];children=child.get((cat,si,gu),[]) if s['level']!='dong' else []
  crumbs,crumbld=crumb(region_crumb(cat,si,gu,dong)); summary,faqhtml,faqld=summary_faq(s,rows)
@@ -201,10 +216,11 @@ for s,path,rows,title,desc in pageinfo:
   parent=byregion.get((cat,si,gu,None)) or byregion.get((cat,si,None,None))
   if parent:h+=f'<p class="notice">수록 업체가 3곳 미만인 지역입니다. <a href="{E(parent[0])}">상위 지역 전체 목록 보기</a></p>'
  if cat in ("funeral","ossuary"):h+=funeral_cta(region=" ".join(filter(None,[si,gu,dong])))+fee_notice()+'<p>지역·업체명 순 · 제휴 여부와 무관한 공공 목록입니다.</p>'
- else:h+=photo_carousel(rows,HOME_KEYS,card22)+recommend(path,rows,admin_ads.get(path,[]))
- h+= '<section class="panel"><h2>장소 목록</h2>'+('<ul class="seo-list">'+''.join(row(p)+(ad_slot('mid',ADFIT_MID) if cat not in ('funeral','ossuary') and i==max(1,len(rows)//2)-1 else '') for i,p in enumerate(rows))+'</ul>' if rows else '<p>현재 필터에 일치하는 업체가 없습니다. 지역 정보 검증 중입니다.</p>')+'</section>'
+ else:h+=region_glance(s,rows,children)+photo_carousel(rows,HOME_KEYS,card22)+recommend(path,rows,admin_ads.get(path,[]))
+ h+= '<section class="panel"><h2>장소 목록</h2>'+('' if cat in ('funeral','ossuary') else list_chips(rows))+('<ul class="seo-list"'+(' data-collapse="40"' if cat not in ('funeral','ossuary') and len(rows)>50 else '')+'>'+''.join(row(p)+(ad_slot('mid',ADFIT_MID) if cat not in ('funeral','ossuary') and i==max(1,len(rows)//2)-1 else '') for i,p in enumerate(rows))+'</ul>' if rows else '<p>현재 필터에 일치하는 업체가 없습니다. 지역 정보 검증 중입니다.</p>')+'</section>'
  if cat not in ('funeral','ossuary'):h+=ad_slot('bottom',ADFIT_BOTTOM,False)
  if children:h+='<section class="panel"><h2>세부 지역</h2>'+links(children)+'</section>'
+ if cat not in ('funeral','ossuary') and s['level']=='sido':h+=other_sido(cat,si)
  h+=faqhtml
  parents=[byregion[k] for k in [(cat,si,None,None),(cat,si,gu,None)] if k in byregion and byregion[k][0]!=path];parents=list(dict.fromkeys(parents))
  siblings=[v for v in child.get((cat,si,gu),[]) if v[0]!=path] if dong else []
