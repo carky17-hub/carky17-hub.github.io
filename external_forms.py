@@ -16,6 +16,9 @@ def fallback():
  h+=f'<div class="owner-cta"><a class="btn primary owner-main" href="{E(OWNER_FORM_URL)}" target="_blank" rel="noopener">무료 등록 신청하기</a><a class="btn" href="{E(OWNER_DM_URL)}" target="_blank" rel="noopener">인스타 DM으로 보내기</a></div></section>'
  h+='<section class="owner-perks">'+''.join(f'<div><b>{E(t)}</b><span>{E(d)}</span></div>' for t,d in perks)+'</section>'
  h+='<section class="panel owner-steps"><h2>이렇게 진행돼요</h2><ol class="g-steps">'+''.join(f'<li><i>{i}</i><b>{E(t)}</b><span>{E(d)}</span></li>' for i,(t,d) in enumerate(steps,1))+'</ol></section>'
+ h+='<section class="panel owner-place-note" id="owner-place" hidden><h2 id="owner-place-title">이미 등록된 매장이에요</h2><p>신청서에 매장 이름과 어디가개 페이지 주소가 미리 입력돼요. 사진만 올려주시면 돼요.</p></section>'
+ h+='<section class="panel" id="photo-report"><h2>사진 삭제·권리침해 신고</h2><p>내 사진이 동의 없이 올라갔거나 사진 속 인물 노출이 불편하다면 인스타 DM이나 이메일 '+E(S.CONTACT_EMAIL)+'로 매장 페이지 주소와 함께 알려주세요. 확인 즉시 내리고 결과를 알려드려요.</p></section>'
+ h+='<script>(function(){var q=new URLSearchParams(location.search),id=q.get("place"),n=q.get("name"),t=q.get("type");if(!id||!/^[a-z0-9]{1,12}$/i.test(id))return;var u=new URL("'+OWNER_FORM_URL+'");u.searchParams.set("usp","pp_url");if(n)u.searchParams.set("entry.1219891810",n.slice(0,80));u.searchParams.set("entry.2013091145","https://eodigagae.com/place/"+id+"/");var a=document.querySelector(".owner-main");if(a){a.href=u.toString();a.textContent=t==="photo"?"사진 등록·수정 신청하기":a.textContent}var s=document.getElementById("owner-place");if(s){s.hidden=false;if(n)document.getElementById("owner-place-title").textContent=n+" 사장님이신가요?"}if(t==="photo-report"){var r=document.getElementById("photo-report");r&&r.scrollIntoView()}})();</script>'
  h+='<section class="panel"><h2>정보 수정·폐업 신고도 여기서</h2><p>이미 등록된 매장의 정보가 다르거나 폐업했다면 같은 신청서에 적어 주세요. 확인 후 고치거나 목록에서 내려요.</p><p class="muted">신청서는 구글 설문으로 접수되며, 사진 첨부에는 구글 로그인이 필요해요. 특정 노출 순위는 보장하지 않아요.</p></section>'
  return h
 def notice():

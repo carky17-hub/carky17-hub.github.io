@@ -278,7 +278,7 @@ def fix_panel(p,name):
  q=f'place={E(p["id"])}&amp;name={E(urllib.parse.quote(name))}'
  ref=next((p.get(k) for k in ('latestEvidenceDate','lastChecked','updatedAt') if known(p.get(k))),None)
  return ('<section class="panel fix-panel" id="fix"><h2>정보가 다르거나 사장님이신가요?</h2><p class="muted">'+(f'정보 기준일 {E(str(ref))} · ' if ref else '')+'잘못된 정보는 알려주시면 확인 후 반영해요.</p><div class="fix-actions">'
-  f'<a class="btn" href="/owner/?type=correction&amp;{q}">정보 수정 제안</a><a class="btn" href="/owner/?type=closure&amp;{q}">폐업 신고</a><a class="btn primary" href="/owner/?type=owner&amp;{q}">사장님 무료 입점 신청</a></div></section>')
+  f'<a class="btn" href="/owner/?type=correction&amp;{q}">정보 수정 제안</a><a class="btn" href="/owner/?type=closure&amp;{q}">폐업 신고</a><a class="btn" href="/owner/?type=photo&amp;{q}">사진 등록·수정 요청</a><a class="btn" href="/owner/?type=photo-report&amp;{q}#photo-report">사진 삭제·권리침해 신고</a><a class="btn primary" href="/owner/?type=owner&amp;{q}">사장님 무료 입점 신청</a></div></section>')
 def detail_actions(p,path,name):
  acts=[];tel=telephone(p.get('phone'))
  if tel and '동물병원' not in p['services']:acts.append(f'<a class="btn primary" href="tel:{E(tel)}">📞 전화하기</a>')

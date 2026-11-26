@@ -11,4 +11,10 @@ def load_source(path):
         if ex.exists():
             drop={r['id'] for r in json.loads(ex.read_text(encoding='utf-8'))}
             data=[p for p in data if p.get('id') not in drop] if isinstance(data,list) else data
+        if isinstance(data,list):
+            for p in data:
+                h=str(p.get('homepage') or '')
+                # 네이버 modoo!는 2025-06-26 종료 → 죽은 링크는 표시하지 않음
+                if 'modoo.at' in h.lower():p['homepage']=None
+                elif 'instargram.com' in h.lower():p['homepage']=h.replace('instargram.com','instagram.com')
     return data
