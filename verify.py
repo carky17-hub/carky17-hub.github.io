@@ -173,7 +173,7 @@ from app_release import asset_links
 assert load(S/'.well-known/assetlinks.json')==asset_links()
 home=(S/'index.html').read_text(encoding='utf-8')
 boot=json.loads(re.search(r'<script type="application/json" id="homeBoot">(.*?)</script>',home,re.S)[1])
-seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,*ops_rank(p),tier(p),not exact_coord(p),p['id']))
+seoul=sorted([p for p in a if p.get('sido')=='서울특별시' and display_services(p)],key=lambda p:(1,*neutral_key(p)) if is_funeral(p) else (0,not (p.get('ownerPhoto') or p.get('tourPhoto')),'동물병원' in (p.get('services') or []),__import__('cards22').rot(p['id'],re.search(r'<meta name="eg-rotation" content="([^"]*)">',(S/'index.html').read_text())[1]) if (p.get('ownerPhoto') or p.get('tourPhoto')) else 0,*ops_rank(p),tier(p),not exact_coord(p),p['id']))
 assert boot['total']==len(seoul) and boot['mapped']==sum(map(exact_coord,seoul))
 assert [p['id'] for p in boot['rows']]==[p['id'] for p in seoul[:20]]
 assert all(x['key']==lookup[x['id']] and all(x[f]==by[x['id']].get(f) for f in m['fields']) for x in boot['rows'])

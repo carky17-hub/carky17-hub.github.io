@@ -1,5 +1,10 @@
 """First-party scores and original card/curation rendering."""
-import html,json,collections
+import html,json,collections,os,datetime
+def rotation_seed():return os.environ.get('EG_ROTATION_SEED') or (datetime.datetime.utcnow()+datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
+def rot(i,seed=None):
+ h=0x811c9dc5
+ for ch in str(i)+'|'+(seed if seed is not None else rotation_seed()):h=((h^ord(ch))*0x01000193)&0xffffffff
+ return h
 from art23 import art as art23
 E=lambda x:html.escape(str(x if x is not None else ''),quote=True)
 ICONS={'식당':'M12 4v9m-4-9v5a4 4 0 0 0 8 0V4m-4 9v15M23 4c-5 4-5 11 0 13h2V4m0 13v11','카페':'M5 10h21v9a8 8 0 0 1-8 8h-5a8 8 0 0 1-8-8zM26 12h2a4 4 0 0 1 0 8h-2M11 3v3m7-3v3','숙소':'M3 15 16 4l13 11M6 13v15h20V13M13 28V18h6v10','여행지':'M3 26 13 10l7 10 4-6 6 12zM24 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6','놀이터':'M16 5a11 11 0 1 0 0 22 11 11 0 0 0 0-22M6 10c8 2 12 12 10 17M26 10c-8 2-12 12-10 17','동물병원':'M12 4h8v8h8v8h-8v8h-8v-8H4v-8h8z','미용':'M8 18a5 5 0 1 0 0 10 5 5 0 0 0 0-10M24 18a5 5 0 1 0 0 10 5 5 0 0 0 0-10M11 19 26 4M21 19 6 4','호텔·유치원':'M3 15 16 4l13 11M6 13v15h20V13M12 20h8v8h-8z','장례·추모':'M16 4c5 6 8 11 8 15a8 8 0 0 1-16 0c0-4 3-9 8-15zM16 15v10'}
@@ -57,7 +62,8 @@ def curated(places,keys):
   cat='카페' if p['category']=='애견카페' else p['category']
   if cat not in ('카페','식당','숙소','여행지'):continue
   for k in [('전국','전체'),('전국',cat),(p['sido'],'전체'),(p['sido'],cat)]:
-   if len(buckets[k])<8:buckets[k].append(p)
+   if len(buckets[k])<24:buckets[k].append(p)
  if not buckets:return ''
+ seed=rotation_seed();buckets={k:sorted(v,key=lambda p:(-bool(p.get('ownerPhoto')),rot(p['id'],seed)))[:8] for k,v in buckets.items()}
  data={si+'|'+cat:''.join(card(p,keys[p['id']],True) for p in ps) for (si,cat),ps in buckets.items()}
  return '<section class="section eg-curated"><div class="head"><h2>사진 있는 추천 장소</h2><a href="/recommendation-policy/">추천 기준</a></div><div class="eg-curated-controls"><label>지역 <select id="curatedRegion"><option>전국</option>'+''.join('<option>'+E(x)+'</option>' for x in sorted({s for s,c in buckets if s!='전국'}))+'</select></label><div id="curatedTabs" role="group" aria-label="추천 업종">'+''.join(f'<button type="button" class="btn" data-curated="{x}" aria-pressed="{str(x=="전체").lower()}">{x}</button>' for x in ('전체','카페','식당','숙소','여행지'))+'</div></div><div id="curatedCards" class="eg-curated-cards">'+data.get('전국|전체','')+'</div><script type="application/json" id="curatedData">'+json.dumps(data,ensure_ascii=False).replace('<','\\u003c')+'</script></section>'
