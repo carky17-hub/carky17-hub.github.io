@@ -10,12 +10,32 @@ def annotate(places,reviews):
   p['ownReviewCount']=len(ratings);p['ownRating']=round(sum(ratings)/len(ratings),1) if ratings else None
 
 def rating(p):return f'<div class="eg-own-rating">어디가개 <b>★ {p["ownRating"]:.1f}</b> · 후기 {p["ownReviewCount"]}건</div>' if p.get('ownReviewCount') else ''
+def pet_chips(p):
+ import re as _re
+ pet=(p.get('tourism') or {}).get('pet') or {}
+ out=[];cond=False
+ if p.get('indoor') is False and p.get('outdoor') is True:out.append('실외만');cond=True
+ elif p.get('indoor') is True and p.get('outdoor') is False:out.append('실내만');cond=True
+ z=str(pet.get('acmpyTypeCd') or '')
+ if '일부' in z:out.append('일부 구역만');cond=True
+ elif '전구역' in z:out.append('전 구역 동반')
+ if p.get('petSizeLarge') is False:out.append('대형견 불가');cond=True
+ m={'목줄 착용':'목줄','입마개 착용':'입마개','이동장(켄넬)사용':'이동장','반려동물 유모차 탑승':'유모차','매너벨트 착용':'매너벨트'}
+ need=[m.get(x.strip(),'') for x in str(pet.get('acmpyNeedMtr') or '').split(',')]
+ need=[x for x in need if x]
+ r=str(p.get('restrictions') or '').strip()
+ if r and r!='제한사항 없음' and not need:
+  t=_re.split(r'[,./\n(]',r)[0].strip()
+  if t and t not in out:need=[t[:12]]
+ if need:out.append('·'.join(need[:2]));cond=True
+ if not out and r=='제한사항 없음':out.append('제한 없음')
+ return out[:3],cond
 def status(p):
  if p.get('category') not in ('식당','카페','애견카페','숙소','여행지','놀이터'):return ''
  if p.get('indoor') is False and p.get('outdoor') is False:return '<span class="eg-pet-state unknown">동반 불가 정보 있음</span>'
- if p.get('indoor') is True or p.get('outdoor') is True or p.get('tourism') or '식약처 인증' in (p.get('tags') or []):
-  conditional=p.get('indoor') is False or p.get('petSizeLarge') is False or bool(p.get('restrictions')) or '일부' in str((p.get('tourism') or {}).get('pet',{}).get('acmpyTypeCd',''))
-  return '<span class="eg-pet-state'+(' conditional' if conditional else '')+'">'+('조건부 동반 · 확인 필요' if conditional else '반려동물 동반 정보 있음')+'</span>'
+ if p.get('indoor') is True or p.get('outdoor') is True or p.get('tourism') or '식약처 인증' in (p.get('tags') or []) or p.get('restrictions'):
+  chips,cond=pet_chips(p)
+  return '<span class="eg-pet-state'+(' conditional' if cond else '')+'">'+(E(' · '.join(chips)) if chips else '반려동물 동반 가능')+'</span>'
  return '<span class="eg-pet-state unknown">동반 조건 확인 필요</span>'
 def cover(p):
  kind=p['category'];kind='카페' if kind=='애견카페' else kind
@@ -26,7 +46,7 @@ def cover(p):
   return f'<div class="eg-card-media"><div class="eg-photo-slot {"contain" if lic else ""}">{art}<img src="{E(photo["src"])}" alt="{E(photo.get("caption"))}" width="400" height="300" loading="lazy" decoding="async" fetchpriority="auto" data-card-photo></div><small class="eg-card-credit">{E(credit)}</small></div>'
  return '<div class="eg-card-media">'+art+'</div>'
 def card(p,key='',recommended=False):
- b='관광공사 등록' if p.get('tourism') else '승인 사진' if p.get('ownerPhoto') else '';b='사진 추천' if recommended else b
+ b='관광공사 등록' if p.get('tourism') else '승인 사진' if p.get('ownerPhoto') else '';b=b or ('사진 추천' if recommended else '')
  attrs=' · '.join(t for k,t in [('indoor','실내 동반'),('petSizeLarge','대형견'),('parking','주차')] if p.get(k) is True)
  return f'<article class="card eg-place-card"><a href="/place/{E(p["id"])}/">{cover(p)}'+(f'<span class="eg-photo-badge">{E(b)}</span>' if b else '')+f'<div class="cardbody"><div class="name">{E(p["name"])}</div><div class="muted">{E(p.get("sigungu") or p.get("sido") or "지역 미확인")} · {E(p["category"])}</div>{status(p)}'+(f'<div class="eg-card-attrs">{E(attrs)}</div>' if attrs else '')+rating(p)+'</div></a><button type="button" class="save" data-save="'+E(p['id'])+'" data-key="'+E(key)+'" aria-label="장소 저장" aria-pressed="false">♡</button></article>'
 def curated(places,keys):
