@@ -1,0 +1,20 @@
+{
+  "p05894": {
+    "fromSubType": "카페",
+    "fromDescription": "애견카페",
+    "subType": "미용 (일반)",
+    "description": null,
+    "fingerprint": "c8b80846443a03b2f35e52cc1fa8f113bbba47a18f06e1cf149752ddea2c4565",
+    "name": "마이티그루밍",
+    "fromCategory": "카페",
+    "fromServices": [
+      "미용",
+      "카페"
+    ],
+    "category": "미용",
+    "services": [
+      "미용"
+    ],
+    "reason": "상호와 등록/원본 업종 일치; 음식점·겸업 근거 없음"
+  }
+}
