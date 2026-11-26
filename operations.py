@@ -22,6 +22,7 @@ def annotate(places,src,google_ids,merged):
   by[pid]['informationCheck']={k:r[k] for k in ('checkedOn','sourceUrl','fields')}
  for p in places:
   p['googleMatchConfirmed']=p['id'] in google_ids and not p['id'].startswith('f')
+  p['googlePlaceId']=google_ids.get(p['id']) if p['googleMatchConfirmed'] else None
   dates=[v.get('checkedOn') for v in p.get('operatorCorrections',{}).values()]+[p.get('lastChecked'),(p.get('informationCheck') or {}).get('checkedOn')]
   valid=[]
   for v in dates:
