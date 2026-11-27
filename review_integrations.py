@@ -20,7 +20,9 @@ def score(p):
 
 def load_ids(src,ids):
  d=json.loads((src/'google-place-ids.json').read_text(encoding='utf-8'))
- if not isinstance(d,dict) or any(k not in ids or not isinstance(v,str) or not re.fullmatch(r'[A-Za-z0-9_-]{5,512}',v) for k,v in d.items()):raise ValueError('Invalid approved Google place IDs')
+ if not isinstance(d,dict) or any(not isinstance(v,str) or not re.fullmatch(r'[A-Za-z0-9_-]{5,512}',v) for v in d.values()):raise ValueError('Invalid approved Google place IDs')
+ stale=[k for k in d if k not in ids]
+ if stale:print('Google place IDs skipped (place no longer listed):',len(stale));d={k:v for k,v in d.items() if k in ids}
  if len(set(d.values()))!=len(d):raise ValueError('Duplicate Google place ID; manually review')
  return d
 
