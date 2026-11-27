@@ -108,7 +108,7 @@ def home_section(items, E):
     def one(p, t, n, ph):
         img = (f'<img class="theme-thumb" src="{E(ph)}" alt="" width="600" height="400" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
                if ph else '<span class="theme-thumb"></span>')
-        cr = '<i class="theme-credit">사진 한국관광공사</i>' if ph else ''
+        cr = ''
         return f'<a class="theme-card" href="{E(p)}">{img}{cr}<b>{E(t)}</b><small>전국 {n:,}곳</small></a>'
     cards = ''.join(one(p, t, n, ph) for p, t, icon, n, ph in items)
     return ('<section class="section theme-section" id="themes"><div class="head"><h2>테마별 모아보기</h2>'

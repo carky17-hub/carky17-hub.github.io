@@ -48,10 +48,10 @@ def cover(p):
  if photo:
   art=art.replace('<div class="eg-art','<div hidden class="eg-art',1)
   lic=photo.get('license');credit='한국관광공사 · 공공누리 '+lic+'유형' if lic else photo.get('label','제공 사진')+' · '+photo.get('credit','')
-  return f'<div class="eg-card-media"><div class="eg-photo-slot {"contain" if lic else ""}">{art}<img src="{E(photo["src"])}" alt="{E(photo.get("caption"))}" width="400" height="300" loading="lazy" decoding="async" fetchpriority="auto" data-card-photo></div><small class="eg-card-credit">{E(credit)}</small></div>'
+  return f'<div class="eg-card-media"><div class="eg-photo-slot {"contain" if lic else ""}">{art}<img src="{E(photo["src"])}" alt="{E(photo.get("caption"))}" width="400" height="300" loading="lazy" decoding="async" fetchpriority="auto" data-card-photo></div></div>'
  return '<div class="eg-card-media">'+art+'</div>'
 def card(p,key='',recommended=False):
- b='승인 사진' if p.get('ownerPhoto') else '';b=b or ('사진 추천' if recommended else '')
+ b='승인 사진' if p.get('ownerPhoto') else ''
  attrs=' · '.join(t for k,t in [('indoor','실내 동반'),('petSizeLarge','대형견'),('parking','주차')] if p.get(k) is True)
  return f'<article class="card eg-place-card"><a href="/place/{E(p["id"])}/">{cover(p)}'+(f'<span class="eg-photo-badge">{E(b)}</span>' if b else '')+f'<div class="cardbody"><div class="name">{E(p["name"])}</div><div class="muted">{E(p.get("sigungu") or p.get("sido") or "지역 미확인")} · {E(p["category"])}</div>{status(p)}'+(f'<div class="eg-card-attrs">{E(attrs)}</div>' if attrs else '')+rating(p)+'</div></a><button type="button" class="save" data-save="'+E(p['id'])+'" data-key="'+E(key)+'" aria-label="장소 저장" aria-pressed="false">♡</button></article>'
 def curated(places,keys):
