@@ -33,5 +33,12 @@
   "reason": "인스타그램 소개에 마지막 프로젝트 마감",
   "evidence": "https://www.instagram.com/ladit_project/",
   "checkedOn": "2026-11-26"
+ },
+ {
+  "id": "p11111",
+  "name": "카페씨멘트",
+  "reason": "카카오맵에서 상호 검색 결과 없음, 같은 주소(희우정로20길 72 1층)에 다른 업체(그리드, 요리주점) 영업 중 · 뽈레 '폐점' 표시 (영업 종료)",
+  "evidence": "https://map.kakao.com/?q=%EB%A7%88%ED%8F%AC%EA%B5%AC%20%ED%9D%AC%EC%9A%B0%EC%A0%95%EB%A1%9C20%EA%B8%B8%2072",
+  "checkedOn": "2026-11-27"
  }
 ]
